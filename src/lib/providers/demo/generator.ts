@@ -86,7 +86,8 @@ function generateCompanyBars(
   const rng = companyRng(company.symbol, "bars");
   const beta = prof.beta * rng.range(0.8, 1.2);
   const idioVol = prof.vol * rng.range(0.75, 1.25);
-  const drift = rng.range(-0.0002, 0.0007);
+  // Offsets the volatility drag so the median stock roughly tracks the market.
+  const drift = rng.range(-0.00025, 0.00045) + (idioVol * idioVol) / 2;
   const sector = sectorFactor.get(company.sector)!;
   const baseVolume = Math.round((company.marketCapCr * 1e7) / company.price / 400) * rng.range(0.6, 1.4);
 
@@ -551,12 +552,18 @@ export function generateDemoDataset(): DemoDataset {
   const start = addDays(addYears(anchor, -DEMO_HISTORY_YEARS), 1);
   const days = weekdaysBetween(start, anchor);
 
+  // Factor series are de-meaned and given an explicit drift so the demo history
+  // does not depend on the luck of one seed (≈ +12 %/yr market, flat sectors).
+  const demean = (xs: number[], target: number) => {
+    const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return xs.map((x) => x - m + target);
+  };
   const marketRng = new SeededRandom(DEMO_SEED ^ hashString("market"));
-  const market = days.map(() => marketRng.normal(0.00035, 0.0085));
+  const market = demean(days.map(() => marketRng.normal(0, 0.0085)), 0.00052);
   const sectorFactor = new Map<string, number[]>();
   for (const s of Object.keys(SECTORS)) {
     const rng = new SeededRandom(DEMO_SEED ^ hashString(`sector:${s}`));
-    sectorFactor.set(s, days.map(() => rng.normal(0, 0.006)));
+    sectorFactor.set(s, demean(days.map(() => rng.normal(0, 0.006)), 0));
   }
 
   const instruments: InstrumentRecord[] = [];

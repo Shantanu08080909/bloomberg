@@ -62,7 +62,7 @@ export function route<P extends Record<string, string> = Record<string, never>>(
   handler: Handler<P>,
   opts: RouteOptions = {},
 ) {
-  return async (req: NextRequest, segment?: { params?: Promise<P> }): Promise<Response> => {
+  return async (req: NextRequest, segment: { params: Promise<P> }): Promise<Response> => {
     try {
       if (!isSameOriginRequest(req)) throw new ApiError(403, "Cross-site request rejected", "csrf");
       const database = await db();

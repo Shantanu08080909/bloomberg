@@ -18,7 +18,7 @@ let alice: { id: string };
 let bob: { id: string };
 
 beforeAll(async () => {
-  handle = await createDb({ PGLITE_DIR: ":memory:" } as NodeJS.ProcessEnv);
+  handle = await createDb({ PGLITE_DIR: ":memory:" } as unknown as NodeJS.ProcessEnv);
   const res = await setupDatabase(handle);
   expect(res.seeded).toBe(true);
   db = handle.db;

@@ -62,7 +62,11 @@ describe("rsi", () => {
   });
   it("stays within [0, 100]", () => {
     const xs = Array.from({ length: 200 }, (_, i) => 100 + 10 * Math.sin(i / 3) + (i % 7));
-    for (const v of rsi(xs, 14)) if (v != null) expect(v).toBeGreaterThanOrEqual(0), expect(v).toBeLessThanOrEqual(100);
+    for (const v of rsi(xs, 14)) {
+      if (v == null) continue;
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
   });
 });
 

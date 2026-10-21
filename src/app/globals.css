@@ -1,26 +1,151 @@
 @import "tailwindcss";
 
+/*
+ * OpenFinance Terminal design tokens.
+ * Graphite surfaces, a teal accent, restrained up/down colours, and an amber
+ * hazard treatment reserved for data-status warnings (DEMO / STALE).
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --color-bg: #0e1012;
+  --color-panel: #15181b;
+  --color-panel-2: #1b1f23;
+  --color-raised: #22272c;
+  --color-line: #2a3036;
+  --color-line-strong: #3a424a;
+  --color-fg: #e4e7ea;
+  --color-dim: #b3bac1;
+  --color-muted: #7f8992;
+  --color-faint: #5b646c;
+
+  --color-accent: #4fb6b0;
+  --color-accent-strong: #6fd3cc;
+  --color-accent-soft: #4fb6b01f;
+
+  --color-up: #3fb17d;
+  --color-up-soft: #3fb17d1f;
+  --color-down: #e0605a;
+  --color-down-soft: #e0605a1f;
+
+  --color-demo: #e2b13c;
+  --color-demo-soft: #e2b13c1a;
+  --color-stale: #d98b3a;
+  --color-info: #6ea8fe;
+
+  --radius-panel: 6px;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numeric data always uses tabular figures so columns align. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Thin scrollbars inside dense panels */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+/* Hazard stripe used only for demo-data warnings */
+.demo-stripe {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-demo-soft) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+/* Data tables */
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-panel-2);
+  color: var(--color-muted);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-line);
+  white-space: nowrap;
+}
+.data-table tbody th {
+  position: static;
+  background: transparent;
+  color: var(--color-dim);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 5px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-line) 60%, transparent);
+}
+.data-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-line) 60%, transparent);
+  white-space: nowrap;
+}
+.data-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--color-raised) 55%, transparent);
+}
+.data-table th.r,
+.data-table td.r {
+  text-align: right;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot {
+    animation: none;
+  }
 }

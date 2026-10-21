@@ -49,6 +49,10 @@ export async function createDb(env: NodeJS.ProcessEnv = process.env): Promise<Db
   const { migrate } = await import("drizzle-orm/pglite/migrator");
   const dataDir =
     mode === "pglite-memory" ? undefined : path.resolve(env.PGLITE_DIR ?? "./data/pglite");
+  if (dataDir) {
+    const fs = await import("node:fs");
+    fs.mkdirSync(path.dirname(dataDir), { recursive: true });
+  }
   const client = dataDir ? new PGlite(dataDir) : new PGlite();
   await client.waitReady;
   const db = drizzle(client, { schema }) as unknown as Database;

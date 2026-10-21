@@ -1,12 +1,23 @@
 {
-  "name": "scaffold",
-  "version": "0.1.0",
+  "name": "openfinance-terminal",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "db:setup": "tsx --conditions=react-server scripts/db-setup.ts",
+    "db:migrate": "tsx --conditions=react-server scripts/db-setup.ts",
+    "db:seed": "tsx --conditions=react-server scripts/db-seed.ts",
+    "db:health": "tsx --conditions=react-server scripts/db-health.ts",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -18,6 +29,7 @@
     "drizzle-orm": "^0.45.4",
     "echarts": "^6.1.0",
     "fast-xml-parser": "^5.11.2",
+    "geist": "^1.8.1",
     "lightweight-charts": "^5.2.1",
     "lucide-react": "^1.61.0",
     "next": "15.5.28",
@@ -48,5 +60,9 @@
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.5"
+  },
+  "description": "Local financial research terminal for Indian markets (NSE/BSE) with a deterministic demo-data mode.",
+  "engines": {
+    "node": ">=20.9.0"
   }
 }

@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import * as s from "@/lib/db/schema";
 import { rsi, rollingVolatility, sma } from "@/lib/finance/indicators";

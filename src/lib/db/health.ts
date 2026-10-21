@@ -16,14 +16,14 @@ export async function checkDatabaseHealth(db: Database, mode: DbMode): Promise<D
   try {
     await db.execute(sql`select 1`);
     const latencyMs = Date.now() - started;
-    const reg = await db.execute<{ t: string | null }>(sql`select to_regclass('public.instruments')::text as t`);
+    const reg = (await db.execute(sql`select to_regclass('public.instruments')::text as t`)) as unknown as { rows: { t: string | null }[] };
     const migrated = Boolean((reg.rows[0] as { t: string | null } | undefined)?.t);
     if (!migrated) {
       return { ok: false, mode, latencyMs, migrated, instruments: 0, priceBars: 0, message: "Database reachable but not migrated. Run: npm run db:setup" };
     }
-    const counts = await db.execute<{ i: number; b: number }>(
+    const counts = (await db.execute(
       sql`select (select count(*)::int from instruments) as i, (select count(*)::int from price_bars) as b`,
-    );
+    )) as unknown as { rows: { i: number; b: number }[] };
     const c = counts.rows[0] as { i: number; b: number };
     return {
       ok: true,

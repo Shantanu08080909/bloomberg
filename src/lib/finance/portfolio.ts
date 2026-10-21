@@ -165,6 +165,12 @@ export function checkLedgerChange(existing: LedgerTx[], candidate: LedgerTx): Le
   return processLedger(next).issues.filter((i) => i.severity === "error" && !before.has(`${i.txId}:${i.message}`));
 }
 
+/** Would deleting this transaction create new ledger errors (e.g. a later sell with no shares)? */
+export function checkLedgerRemoval(existing: LedgerTx[], txId: number): LedgerIssue[] {
+  const before = new Set(processLedger(existing).issues.map((i) => `${i.txId}:${i.message}`));
+  return processLedger(existing.filter((t) => t.id !== txId)).issues.filter((i) => i.severity === "error" && !before.has(`${i.txId}:${i.message}`));
+}
+
 export interface ValuedPosition extends PositionState {
   price: number | null;
   priceAsOf: Date | null;

@@ -8,6 +8,20 @@ export interface FreshnessThresholds {
 
 export const DEFAULT_THRESHOLDS: FreshnessThresholds = { liveMinutes: 15, delayedMinutes: 60, eodHours: 96 };
 
+const positive = (v: string | undefined, fallback: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/** Thresholds from STALE_AFTER_* environment variables (server), else defaults. */
+export function thresholdsFromEnv(env: Record<string, string | undefined> = typeof process !== "undefined" ? process.env : {}): FreshnessThresholds {
+  return {
+    liveMinutes: positive(env.STALE_AFTER_MINUTES_LIVE, DEFAULT_THRESHOLDS.liveMinutes),
+    delayedMinutes: positive(env.STALE_AFTER_MINUTES_DELAYED, DEFAULT_THRESHOLDS.delayedMinutes),
+    eodHours: positive(env.STALE_AFTER_HOURS_EOD, DEFAULT_THRESHOLDS.eodHours),
+  };
+}
+
 /**
  * Decide what label a record gets in the UI. Demo data is always "demo"
  * (it never becomes "live" or "stale"); real data older than its threshold is
@@ -17,7 +31,7 @@ export function classifyFreshness(
   status: DataStatus | string | null | undefined,
   asOf: Date | string | null | undefined,
   now: Date = new Date(),
-  t: FreshnessThresholds = DEFAULT_THRESHOLDS,
+  t: FreshnessThresholds = thresholdsFromEnv(),
 ): DisplayStatus {
   if (!status) return "unavailable";
   if (status === "demo") return "demo";
