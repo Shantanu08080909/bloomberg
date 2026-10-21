@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { authenticate, changePassword, countUsers, createSession, createUser, deleteSession, getSessionUser } from "@/lib/auth/core";
 import { createDb, type Database } from "@/lib/db/client";
 import * as s from "@/lib/db/schema";
@@ -17,8 +17,20 @@ let db: Database;
 let alice: { id: string };
 let bob: { id: string };
 
+/**
+ * Runs against in-memory embedded PostgreSQL by default. Set TEST_DATABASE_URL
+ * to run the same suite against a PostgreSQL server — its schema is DROPPED
+ * and recreated, so point it at a throwaway database.
+ */
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+
 beforeAll(async () => {
-  handle = await createDb({ PGLITE_DIR: ":memory:" } as unknown as NodeJS.ProcessEnv);
+  handle = await createDb((TEST_DATABASE_URL ? { DATABASE_URL: TEST_DATABASE_URL } : { PGLITE_DIR: ":memory:" }) as unknown as NodeJS.ProcessEnv);
+  if (TEST_DATABASE_URL) {
+    await handle.db.execute(sql`drop schema if exists drizzle cascade`);
+    await handle.db.execute(sql`drop schema public cascade`);
+    await handle.db.execute(sql`create schema public`);
+  }
   const res = await setupDatabase(handle);
   expect(res.seeded).toBe(true);
   db = handle.db;

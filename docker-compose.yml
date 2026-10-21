@@ -1,0 +1,28 @@
+# Optional: a local PostgreSQL server for OpenFinance Terminal.
+# The app does NOT need this — by default it uses embedded PostgreSQL (PGlite).
+#
+#   docker compose up -d
+#   then in .env.local:  DATABASE_URL=postgres://openfinance:change-me@localhost:5432/openfinance
+#   npm run db:setup
+#
+# Change the password before using this anywhere other than your own computer.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openfinance
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: openfinance
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - openfinance-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfinance -d openfinance"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  openfinance-pg:

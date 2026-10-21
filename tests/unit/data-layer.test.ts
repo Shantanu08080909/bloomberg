@@ -311,3 +311,64 @@ describe("dates", () => {
     expect(rangeStart("MAX", "2026-09-30")).toBeNull();
   });
 });
+
+describe("bar aggregation", () => {
+  it("builds weekly and monthly OHLCV bars", async () => {
+    const { aggregateBars, weekStart } = await import("@/lib/finance/aggregate");
+    expect(weekStart("2026-09-30")).toBe("2026-09-28");
+    const bars = [
+      { date: "2026-09-28", open: 10, high: 12, low: 9, close: 11, volume: 100 },
+      { date: "2026-09-29", open: 11, high: 15, low: 10, close: 14, volume: 50 },
+      { date: "2026-10-01", open: 14, high: 14, low: 8, close: 9, volume: 25 },
+    ];
+    expect(aggregateBars(bars, "W")).toEqual([{ date: "2026-09-28", open: 10, high: 15, low: 8, close: 9, volume: 175 }]);
+    expect(aggregateBars(bars, "M").map((b) => [b.date, b.close, b.volume])).toEqual([
+      ["2026-09-28", 14, 150],
+      ["2026-10-01", 9, 25],
+    ]);
+  });
+});
+
+describe("CSV import of economic series", () => {
+  it("parses date,value rows and reports bad lines", async () => {
+    const { parseObservationCsv } = await import("@/lib/services/datasets");
+    expect(parseObservationCsv("date,value\n2026-01-01,5.25\n2026-02-01,.\n").observations).toEqual([
+      { periodDate: "2026-01-01", value: 5.25 },
+      { periodDate: "2026-02-01", value: null },
+    ]);
+    const bad = parseObservationCsv("date,value\n01/02/2026,5\n2026-03-01,abc\n");
+    expect(bad.errors).toHaveLength(2);
+    expect(parseObservationCsv("2026-01-01,1,000.5".replace("1,000.5", '"1,000.5"')).observations[0]!.value).toBe(1000.5);
+  });
+  it("validates bounded data-explorer queries", async () => {
+    const { QuerySchema } = await import("@/lib/services/datasets");
+    expect(() => QuerySchema.parse({ dataset: "price_bars" })).toThrow(/instrument/);
+    expect(() => QuerySchema.parse({ dataset: "price_bars", symbol: "X", from: "2020-01-01", to: "2026-01-01" })).toThrow(/3 years/);
+    expect(() => QuerySchema.parse({ dataset: "quotes", from: "2026-02-01", to: "2026-01-01" })).toThrow(/End date/);
+    expect(() => QuerySchema.parse({ dataset: "secret_table" })).toThrow();
+    expect(QuerySchema.parse({ dataset: "quotes", pageSize: 100 }).pageSize).toBe(100);
+    expect(() => QuerySchema.parse({ dataset: "quotes", pageSize: 100_000 })).toThrow();
+  });
+});
+
+describe("export policy", () => {
+  it("blocks licensed sources and allows demo/user data", async () => {
+    const { assertExportAllowed } = await import("@/lib/server/export-policy");
+    expect(assertExportAllowed("demo").allowed).toBe(true);
+    expect(assertExportAllowed("user").allowed).toBe(true);
+    expect(() => assertExportAllowed("alphavantage")).toThrow(/not exportable/);
+    expect(() => assertExportAllowed("unknown")).toThrow();
+  });
+});
+
+describe("CSRF origin check", () => {
+  it("accepts same-origin and rejects cross-site writes", async () => {
+    const { isSameOriginRequest } = await import("@/lib/server/api");
+    const req = (method: string, headers: Record<string, string>) => ({ method, headers: new Headers(headers) });
+    expect(isSameOriginRequest(req("GET", { origin: "https://evil.test", host: "localhost:3000" }))).toBe(true);
+    expect(isSameOriginRequest(req("POST", { origin: "http://localhost:3000", host: "localhost:3000" }))).toBe(true);
+    expect(isSameOriginRequest(req("POST", { origin: "https://evil.test", host: "localhost:3000" }))).toBe(false);
+    expect(isSameOriginRequest(req("DELETE", { "sec-fetch-site": "cross-site", host: "localhost:3000" }))).toBe(false);
+    expect(isSameOriginRequest(req("POST", { host: "localhost:3000" }))).toBe(true);
+  });
+});
