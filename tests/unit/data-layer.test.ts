@@ -370,5 +370,7 @@ describe("CSRF origin check", () => {
     expect(isSameOriginRequest(req("POST", { origin: "https://evil.test", host: "localhost:3000" }))).toBe(false);
     expect(isSameOriginRequest(req("DELETE", { "sec-fetch-site": "cross-site", host: "localhost:3000" }))).toBe(false);
     expect(isSameOriginRequest(req("POST", { host: "localhost:3000" }))).toBe(true);
+    // Proxy rewrote Host, but the browser marks the request same-origin.
+    expect(isSameOriginRequest(req("POST", { origin: "https://x-3000.app.github.dev", host: "localhost:3000", "sec-fetch-site": "same-origin" }))).toBe(true);
   });
 });

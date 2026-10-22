@@ -27,6 +27,9 @@ export function isSameOriginRequest(req: Pick<NextRequest, "headers" | "method">
   if (SAFE_METHODS.has(req.method)) return true;
   const site = req.headers.get("sec-fetch-site");
   if (site === "cross-site" || site === "same-site") return false;
+  // Set by the browser itself and cannot be forged by page scripts; reliable
+  // even when a proxy rewrites the Host header (e.g. GitHub Codespaces).
+  if (site === "same-origin") return true;
   const origin = req.headers.get("origin");
   if (!origin) return true;
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
