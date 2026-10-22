@@ -12,6 +12,11 @@ export const EXPORT_POLICY: Record<string, { allowed: boolean; attribution?: str
   fred: { allowed: true, attribution: "Source: FRED, Federal Reserve Bank of St. Louis" },
   alphavantage: { allowed: false, reason: "Alpha Vantage data is not exportable from this application; check the provider's terms." },
   rss: { allowed: false, reason: "Third-party news content is not exportable." },
+  eod: {
+    allowed: process.env.EOD_EXPORT_ALLOWED === "true",
+    attribution: "Source: NSE/BSE end-of-day files imported by the user (personal use)",
+    reason: "Exchange end-of-day data is not exportable by default because redistribution rights are not assumed. Set EOD_EXPORT_ALLOWED=true only if your use is permitted.",
+  },
 };
 
 export const MAX_EXPORT_ROWS = 10_000;

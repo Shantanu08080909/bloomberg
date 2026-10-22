@@ -21,7 +21,7 @@ function colorFor(pct: number | null) {
 }
 
 /** Sector treemap: tile area = market cap, colour = daily change. */
-export function MarketHeatmap({ cells, height = 420 }: { cells: HeatCell[]; height?: number }) {
+export function MarketHeatmap({ cells, height = 420, sizeLabel = "Mkt cap" }: { cells: HeatCell[]; height?: number; sizeLabel?: string }) {
   const router = useRouter();
   const option = useMemo(() => {
     const bySector = new Map<string, HeatCell[]>();
@@ -32,7 +32,7 @@ export function MarketHeatmap({ cells, height = 420 }: { cells: HeatCell[]; heig
           const d = p.data;
           if (!d) return "";
           const pct = d.pct == null ? "—" : `${d.pct > 0 ? "+" : ""}${d.pct.toFixed(2)}%`;
-          return `<b>${d.name}</b>${d.fullName ? `<br/>${d.fullName}` : ""}<br/>Mkt cap ₹${Math.round(d.value).toLocaleString("en-IN")} cr<br/>Change ${pct}`;
+          return `<b>${d.name}</b>${d.fullName ? `<br/>${d.fullName}` : ""}<br/>${sizeLabel} ₹${Math.round(d.value).toLocaleString("en-IN")} cr<br/>Change ${pct}`;
         },
       },
       series: [
@@ -69,7 +69,7 @@ export function MarketHeatmap({ cells, height = 420 }: { cells: HeatCell[]; heig
         },
       ],
     };
-  }, [cells]);
+  }, [cells, sizeLabel]);
   if (cells.length === 0) return <p className="py-8 text-center text-[12px] text-muted">Heatmap unavailable: market capitalisation data is missing for this source.</p>;
   return (
     <EChart

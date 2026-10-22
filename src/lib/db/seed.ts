@@ -17,6 +17,7 @@ import {
   upsertStatements,
 } from "@/lib/ingest";
 import { generateDemoDataset, listingKey } from "@/lib/providers/demo/generator";
+import { refreshTechnicalSnapshots } from "@/lib/eod/technicals";
 
 export async function isDemoSeeded(db: Database): Promise<boolean> {
   const [row] = await db
@@ -49,6 +50,7 @@ export async function seedDemo(db: Database, log: (msg: string) => void = () => 
     const obs = await upsertEconomicSeries(db, "demo", data.economic);
     await insertSampleEvents(db, "demo", data.events);
     log(`Economic observations: ${obs}; news: ${data.news.length}; events: ${data.events.length}`);
+    await refreshTechnicalSnapshots(db, "demo");
     await finishRun(db, runId, "demo", { status: "success", recordCount: bars });
   } catch (err) {
     await finishRun(db, runId, "demo", {

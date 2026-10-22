@@ -1,8 +1,9 @@
 import "server-only";
-import { getConfig } from "@/lib/config";
+import { describeConfig, eodExchanges, getConfig } from "@/lib/config";
+import { dailyUpdate, downloadConfig, istToday } from "@/lib/eod/download";
 import { checkAlerts } from "@/lib/services/alerts-engine";
 import { getAppState, listDataSources, refreshSource, setAppState, syncSourceConfiguration, type RefreshableSource } from "@/lib/services/refresh";
-import { db } from "./db";
+import { db, refreshEodFlag } from "./db";
 import { sendEmail } from "./email";
 
 const g = globalThis as unknown as { __ofScheduler?: NodeJS.Timeout; __ofTickRunning?: boolean };
@@ -26,7 +27,25 @@ export async function schedulerTick() {
       await refreshSource(database, src.id as RefreshableSource);
       refreshed.push(src.id);
     }
+    // Daily end-of-day update, at most one attempt per IST day after the publish time.
+    let eod: Record<string, unknown> | null = null;
+    if (describeConfig().eodAutoUpdate) {
+      const today = istToday(new Date(), downloadConfig().publishAfterIst);
+      const prev = await getAppState(database, "eod_auto_update");
+      if (today.published && prev?.value.date !== today.date) {
+        await setAppState(database, "eod_auto_update", { date: today.date, startedAt: new Date().toISOString() });
+        try {
+          const outcomes = await dailyUpdate(database, eodExchanges());
+          await refreshEodFlag(database);
+          eod = { date: today.date, imported: outcomes.filter((o) => o.status === "imported").length, missing: outcomes.filter((o) => o.status === "missing").length, blocked: outcomes.some((o) => o.status === "blocked") };
+        } catch (err) {
+          eod = { date: today.date, error: err instanceof Error ? err.message : String(err) };
+        }
+        await setAppState(database, "eod_auto_update", { ...eod, finishedAt: new Date().toISOString() });
+      }
+    }
     await setAppState(database, SCHEDULER_KEY, {
+      eod,
       lastTickAt: started.toISOString(),
       intervalSeconds: getConfig().ALERT_CHECK_INTERVAL_SECONDS,
       pid: process.pid,

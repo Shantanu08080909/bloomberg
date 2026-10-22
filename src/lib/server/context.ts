@@ -5,13 +5,21 @@ import { formatIST } from "@/lib/dates";
 import { classifyFreshness, STATUS_LABEL, summariseStatuses } from "@/lib/market/freshness";
 import type { DisplayStatus } from "@/lib/market/types";
 import { getMarketDataStatus } from "@/lib/services/market";
-import { db } from "./db";
+import { db, hasEodCached } from "./db";
 
 /** Source whose instruments and prices the terminal displays. */
 export function getActiveSourceId(): string {
   const c = getConfig();
-  if (c.MARKET_DATA_SOURCE === "alphavantage" && c.ALPHAVANTAGE_API_KEY) return "alphavantage";
-  return "demo";
+  switch (c.MARKET_DATA_SOURCE) {
+    case "alphavantage":
+      return c.ALPHAVANTAGE_API_KEY ? "alphavantage" : "demo";
+    case "eod":
+      return "eod";
+    case "demo":
+      return "demo";
+    default:
+      return hasEodCached() ? "eod" : "demo";
+  }
 }
 
 export function isDemoMode() {

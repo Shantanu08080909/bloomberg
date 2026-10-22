@@ -35,6 +35,8 @@ export function classifyFreshness(
 ): DisplayStatus {
   if (!status) return "unavailable";
   if (status === "demo") return "demo";
+  // An archive is explicitly not a current feed, so it never turns stale.
+  if (status === "historical") return "historical";
   if (!asOf) return "unavailable";
   const ts = typeof asOf === "string" ? new Date(asOf) : asOf;
   if (Number.isNaN(ts.getTime())) return "unavailable";
@@ -56,6 +58,7 @@ export const STATUS_LABEL: Record<DisplayStatus, string> = {
   live: "LIVE",
   delayed: "DELAYED",
   eod: "END OF DAY",
+  historical: "HISTORICAL",
   stale: "STALE",
   unavailable: "UNAVAILABLE",
 };
@@ -64,7 +67,8 @@ export const STATUS_DESCRIPTION: Record<DisplayStatus, string> = {
   demo: "Synthetic demo data about fictional companies — not real market prices.",
   live: "Real-time data from a configured provider.",
   delayed: "Delayed data from a configured provider.",
-  eod: "End-of-day data from a configured provider.",
+  eod: "End-of-day data from an official daily exchange file or a configured provider.",
+  historical: "Imported historical archive or backfill. Not a current daily feed — run a daily update for end-of-day data.",
   stale: "Data from a configured provider that is older than its freshness threshold.",
   unavailable: "No data is available from any configured source.",
 };
@@ -73,7 +77,7 @@ export const STATUS_DESCRIPTION: Record<DisplayStatus, string> = {
 export function summariseStatuses(statuses: DisplayStatus[]): { primary: DisplayStatus; mixed: boolean } {
   const unique = [...new Set(statuses)];
   if (unique.length === 0) return { primary: "unavailable", mixed: false };
-  const priority: DisplayStatus[] = ["demo", "stale", "unavailable", "delayed", "eod", "live"];
+  const priority: DisplayStatus[] = ["demo", "stale", "unavailable", "historical", "delayed", "eod", "live"];
   const primary = priority.find((p) => unique.includes(p)) ?? unique[0]!;
   return { primary, mixed: unique.length > 1 };
 }

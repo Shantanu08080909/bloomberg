@@ -11,6 +11,8 @@ export interface ScreenRow {
   price: number | null;
   changePct: number | null;
   volume: number | null;
+  /** Traded value on the latest session, INR crore. */
+  turnoverCr: number | null;
   marketCapCr: number | null;
   pe: number | null;
   pb: number | null;
@@ -26,6 +28,8 @@ export interface ScreenRow {
   priceVsSma200: number | null;
   rsi14: number | null;
   volatility30: number | null;
+  return1y: number | null;
+  pctFrom52wHigh: number | null;
   dataStatus: string | null;
   asOf: string | null;
 }
@@ -46,6 +50,7 @@ export const SCREEN_FIELDS: FieldDef[] = [
   { key: "price", label: "Price", unit: "₹", group: "Price" },
   { key: "changePct", label: "Change %", unit: "%", group: "Price" },
   { key: "volume", label: "Volume", unit: "shares", group: "Price" },
+  { key: "turnoverCr", label: "Turnover", unit: "₹ cr", group: "Price" },
   { key: "marketCapCr", label: "Market cap", unit: "₹ cr", group: "Fundamentals" },
   { key: "pe", label: "P/E", unit: "x", group: "Fundamentals" },
   { key: "pb", label: "P/B", unit: "x", group: "Fundamentals" },
@@ -61,6 +66,8 @@ export const SCREEN_FIELDS: FieldDef[] = [
   { key: "priceVsSma200", label: "Price vs SMA 200", unit: "%", group: "Technical" },
   { key: "rsi14", label: "RSI 14", unit: "", group: "Technical" },
   { key: "volatility30", label: "Volatility 30d (ann.)", unit: "%", group: "Technical" },
+  { key: "return1y", label: "1-year return", unit: "%", group: "Technical" },
+  { key: "pctFrom52wHigh", label: "From 52-week high", unit: "%", group: "Technical" },
 ];
 
 const FIELD_KEYS = SCREEN_FIELDS.map((f) => f.key) as [NumericField, ...NumericField[]];

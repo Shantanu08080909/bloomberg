@@ -15,7 +15,7 @@ import { getActiveSourceId, getShellStatus } from "@/lib/server/context";
 import { db } from "@/lib/server/db";
 import { portfolioSummaryDTO } from "@/lib/server/portfolio-dto";
 import { listNews } from "@/lib/services/content";
-import { getBarsForMany, getBreadth, getIndices, getMovers, latestBarDate, listInstrumentsWithQuotes } from "@/lib/services/market";
+import { getBarsForMany, getBreadth, getExchangeBreadth, getIndices, getMovers, latestBarDate, listInstrumentsWithQuotes } from "@/lib/services/market";
 import { listEvents, listPortfolios, listWatchlists, watchlistInstrumentIds } from "@/lib/services/user-data";
 
 export default async function DashboardPage() {
@@ -35,7 +35,13 @@ export default async function DashboardPage() {
   ]);
   const sparks = await getBarsForMany(database, indices.map((i) => i.id), sourceId, last ? addDays(last, -90) : null);
   const nifty = indices.find((i) => i.symbol === "NIFTY50") ?? indices[0];
-  const breadth = nifty ? await getBreadth(database, nifty.id, sourceId) : null;
+  const indexBreadth = nifty ? await getBreadth(database, nifty.id, sourceId) : null;
+  const nseBreadth = indexBreadth ? null : await getExchangeBreadth(database, sourceId, "NSE");
+  const exchangeBreadth = indexBreadth ? null : (nseBreadth?.constituents ? nseBreadth : await getExchangeBreadth(database, sourceId, "BSE"));
+  const breadth = indexBreadth ?? exchangeBreadth;
+  const breadthLabel = indexBreadth ? (nifty?.name ?? "Index") : nseBreadth?.constituents ? "All NSE equities, latest session" : "All BSE equities, latest session";
+  // Without index data, chart the most actively traded stock instead.
+  const chartTarget = nifty ?? movers.active[0] ?? null;
   const firstList = lists[0];
   const watchIds = firstList ? await watchlistInstrumentIds(database, user.id, firstList.id) : [];
   const watchRows = watchIds.length ? await listInstrumentsWithQuotes(database, sourceId, { ids: watchIds }) : [];
@@ -58,12 +64,16 @@ export default async function DashboardPage() {
       <IndexCards indices={indices} sparks={sparks} />
 
       <div className="grid gap-3 xl:grid-cols-3">
-        <Panel title={nifty ? `${nifty.name} — history` : "Index history"} className="xl:col-span-2">
-          {nifty ? <InstrumentChart instrumentId={nifty.id} label={nifty.symbol} defaultType="area" height={300} controls="compact" /> : <p className="text-muted">Index data unavailable.</p>}
+        <Panel
+          title={chartTarget ? `${chartTarget.name} — history` : "Price history"}
+          className="xl:col-span-2"
+          footer={!nifty && chartTarget ? "No index data loaded: showing the most actively traded stock. Import the NSE index closing file to chart NIFTY indices." : undefined}
+        >
+          {chartTarget ? <InstrumentChart instrumentId={chartTarget.id} label={chartTarget.symbol} defaultType="area" height={300} controls="compact" /> : <p className="text-muted">No price history available.</p>}
         </Panel>
         <div className="flex flex-col gap-3">
           <Panel title="Market breadth">
-            <Breadth data={breadth} label={nifty?.name ?? "Index"} />
+            <Breadth data={breadth} label={breadthLabel} />
           </Panel>
           <Panel title="Data source status" actions={<LinkButton href="/providers" variant="ghost" size="sm">Details</LinkButton>}>
             <KeyValue

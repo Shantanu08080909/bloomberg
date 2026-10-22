@@ -123,6 +123,8 @@ export const instruments = pgTable(
     exchangeCode: text("exchange_code"),
     /** Groups listings of the same issuer across exchanges. */
     issuerKey: text("issuer_key"),
+    /** Exchange series / group as last reported (NSE EQ/BE…, BSE A/B/T…). */
+    series: text("series"),
     instrumentType: text("instrument_type").notNull(), // EQUITY | INDEX | ETF
     sector: text("sector"),
     industry: text("industry"),
@@ -206,11 +208,80 @@ export const priceBars = pgTable(
     low: money("low").notNull(),
     close: money("close").notNull(),
     volume: bigint("volume", { mode: "number" }).notNull(),
+    /** Previous close as reported by the exchange file (adjusted for corporate actions by the exchange). */
+    prevClose: money("prev_close"),
+    /** Traded value in INR. */
+    turnover: numeric("turnover", { precision: 24, scale: 2, mode: "number" }),
+    trades: bigint("trades", { mode: "number" }),
+    /** Import that last wrote this bar (null for generated demo data). */
+    importId: integer("import_id"),
+    /** official | archive — official exchange files take precedence over archives. */
+    origin: text("origin"),
   },
   (t) => [
     primaryKey({ columns: [t.instrumentId, t.sourceId, t.date] }),
     index("price_bars_date_idx").on(t.date),
+    index("price_bars_source_date_idx").on(t.sourceId, t.date),
   ],
+);
+
+/**
+ * One row per imported file (or downloaded day). Provides provenance for
+ * every stored bar and makes re-imports idempotent (same SHA-256 = skipped).
+ */
+export const importFiles = pgTable(
+  "import_files",
+  {
+    id: serial("id").primaryKey(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => dataSources.id),
+    /** nse_udiff | nse_legacy | bse_udiff | nse_index | tej_parquet */
+    format: text("format").notNull(),
+    exchange: text("exchange"),
+    /** official | archive */
+    origin: text("origin").notNull(),
+    /** daily | backfill | manual | archive — decides the HISTORICAL vs END OF DAY label. */
+    mode: text("mode").notNull(),
+    fileName: text("file_name").notNull(),
+    sha256: text("sha256").notNull(),
+    sourceUrl: text("source_url"),
+    tradeDateFrom: date("trade_date_from", { mode: "string" }),
+    tradeDateTo: date("trade_date_to", { mode: "string" }),
+    rowsRead: integer("rows_read").notNull().default(0),
+    rowsAccepted: integer("rows_accepted").notNull().default(0),
+    rowsRejected: integer("rows_rejected").notNull().default(0),
+    barsWritten: integer("bars_written").notNull().default(0),
+    status: text("status").notNull(), // success | error | skipped
+    message: text("message"),
+    importedBy: uuid("imported_by").references(() => users.id, { onDelete: "set null" }),
+    importedAt: ts("imported_at").notNull().defaultNow(),
+  },
+  (t) => [index("import_files_sha_idx").on(t.sha256), index("import_files_source_idx").on(t.sourceId, t.importedAt)],
+);
+
+/** Pre-computed technical snapshot per instrument used by the screener. */
+export const technicalSnapshots = pgTable(
+  "technical_snapshots",
+  {
+    instrumentId: integer("instrument_id")
+      .notNull()
+      .references(() => instruments.id, { onDelete: "cascade" }),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => dataSources.id),
+    asOf: date("as_of", { mode: "string" }).notNull(),
+    sma50: money("sma50"),
+    sma200: money("sma200"),
+    rsi14: ratio("rsi14"),
+    volatility30: ratio("volatility30"),
+    avgVolume20: ratio("avg_volume20"),
+    high52w: money("high_52w"),
+    low52w: money("low_52w"),
+    return1y: ratio("return_1y"),
+    bars: integer("bars").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.instrumentId, t.sourceId] })],
 );
 
 export const companyFundamentals = pgTable(

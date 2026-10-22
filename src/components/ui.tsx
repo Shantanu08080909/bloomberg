@@ -102,6 +102,7 @@ const STATUS_TONE: Record<DisplayStatus, keyof typeof BADGE_TONES> = {
   live: "up",
   delayed: "info",
   eod: "neutral",
+  historical: "info",
   stale: "stale",
   unavailable: "down",
 };

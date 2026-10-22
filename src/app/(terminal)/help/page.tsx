@@ -74,7 +74,7 @@ export default function HelpPage() {
             </p>
             <p>Every price or dataset carries one of these labels; they are never silently mixed (a “mixed” marker appears when a view combines statuses):</p>
             <ul className="!ml-0 flex flex-col gap-1.5">
-              {(["demo", "live", "delayed", "eod", "stale", "unavailable"] as const).map((s) => (
+              {(["demo", "live", "delayed", "eod", "historical", "stale", "unavailable"] as const).map((s) => (
                 <li key={s} className="!ml-0 flex list-none items-start gap-2">
                   <StatusBadge status={s} className="mt-0.5 shrink-0" />
                   <span>{STATUS_DESCRIPTION[s]}</span>
@@ -118,6 +118,14 @@ export default function HelpPage() {
             <p>Real providers are configured with environment variables in <code>.env.local</code> (copy <code>.env.example</code>). Keys stay on the server; they are never sent to the browser.</p>
             <ul>
               <li>
+                <strong>NSE and BSE end-of-day prices</strong> (official bhavcopy files): on <Link href="/providers" className="text-accent">Data Provider Status</Link> →{" "}
+                <em>End-of-day market data</em>, import the UDiFF Common Bhavcopy CSV/ZIP files you download from the NSE All Reports page or the BSE Bhavcopy page. Once any
+                file is imported the terminal switches from demo data to the stored prices (with <code>MARKET_DATA_SOURCE=auto</code>, the default). Automated downloads and
+                daily updates after 19:00 IST can be enabled with <code>EOD_DOWNLOAD_ENABLED=true</code> after you review the exchanges&apos; terms. Imported data is for
+                personal use; CSV export of it is blocked by default. End-of-day files contain no market caps, sectors or fundamentals, and prices are not adjusted for
+                splits or bonuses. Full guide: <code>docs/EOD_DATA.md</code>.
+              </li>
+              <li>
                 <strong>Alpha Vantage</strong> (quotes and daily bars for BSE listings): set <code>ALPHAVANTAGE_API_KEY</code>, list symbols in <code>ALPHAVANTAGE_SYMBOLS</code>, and set{" "}
                 <code>MARKET_DATA_SOURCE=alphavantage</code>. The free tier allows very few requests per day; fundamentals, indices and corporate actions are not provided by this adapter and show as unavailable.
               </li>
@@ -128,7 +136,7 @@ export default function HelpPage() {
                 <strong>RSS/Atom news</strong>: set <code>NEWS_RSS_FEEDS</code> to feeds you are permitted to use.
               </li>
               <li>
-                <strong>RBI, MoSPI, NSE and BSE</strong>: no free, documented API with suitable rights was identified. Download official releases yourself and use{" "}
+                <strong>RBI, MoSPI, real-time NSE/BSE data and fundamentals</strong>: no free, documented API with suitable rights was identified. Download official releases yourself and use{" "}
                 <Link href="/data" className="text-accent">Data Explorer → Import CSV</Link>, or integrate a licensed vendor by adding an adapter that implements the provider interface in{" "}
                 <code>src/lib/market/types.ts</code>.
               </li>

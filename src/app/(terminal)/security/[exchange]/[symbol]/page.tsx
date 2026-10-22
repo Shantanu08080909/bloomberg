@@ -8,7 +8,7 @@ import { StatementTable } from "@/components/Statements";
 import { Badge, Callout, Change, DataUnavailable, KeyValue, LinkButton, Panel, StatusBadge } from "@/components/ui";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { requireUser } from "@/lib/auth/server";
-import { addYears, formatIST, formatISTDate } from "@/lib/dates";
+import { addDays, addYears, formatIST, formatISTDate } from "@/lib/dates";
 import { securityHref } from "@/lib/dto";
 import { fmtCompact, fmtCrore, fmtMultiple, fmtNumber, fmtPct, fmtPrice } from "@/lib/format";
 import { getActiveSourceId } from "@/lib/server/context";
@@ -21,6 +21,7 @@ import {
   getIndexConstituents,
   getIndexMetadata,
   getInstrument,
+  getLatestBarProvenance,
   getOtherListings,
   getPeers,
   getStatements,
@@ -47,6 +48,7 @@ export default async function SecurityPage({ params }: { params: Promise<Params>
 
   const last = await latestBarDate(database, sourceId);
   const isIndex = inst.instrumentType === "INDEX";
+  const provenance = await getLatestBarProvenance(database, inst.id, sourceId);
   const [yearBars, fundamentals, statements, actions, peers, listings, news, notes, lists, containing, indexMeta, constituents] = await Promise.all([
     getBars(database, inst.id, sourceId, last ? addYears(last, -1) : null),
     getFundamentals(database, inst.id, sourceId),
@@ -66,6 +68,9 @@ export default async function SecurityPage({ params }: { params: Promise<Params>
   const lo52 = yearBars.length ? Math.min(...yearBars.map((b) => b.low)) : null;
   const avgVol = yearBars.length ? yearBars.slice(-20).reduce((s, b) => s + b.volume, 0) / Math.min(20, yearBars.length) : null;
   const ret1y = yearBars.length > 1 ? (yearBars[yearBars.length - 1]!.close / yearBars[0]!.close - 1) * 100 : null;
+  // Label windows honestly when less than a year of history is stored.
+  const fullYear = last != null && yearBars.length > 0 && yearBars[0]!.date <= addDays(addYears(last, -1), 7);
+  const since = yearBars[0] ? formatISTDate(yearBars[0].date) : null;
   const dividends = actions.filter((a) => a.action.actionType === "DIVIDEND");
 
   return (
@@ -126,12 +131,27 @@ export default async function SecurityPage({ params }: { params: Promise<Params>
                 ["Previous close", fmtPrice(q?.prevClose)],
                 ["Volume", fmtCompact(q?.volume)],
                 ["Avg volume (20d)", fmtCompact(avgVol)],
-                ["52-week high", fmtPrice(hi52)],
-                ["52-week low", fmtPrice(lo52)],
-                ["1-year return", <Change key="r" pct={ret1y} />],
+                [fullYear ? "52-week high" : `High since ${since}`, fmtPrice(hi52)],
+                [fullYear ? "52-week low" : `Low since ${since}`, fmtPrice(lo52)],
+                [fullYear ? "1-year return" : `Return since ${since}`, <Change key="r" pct={ret1y} />],
               ]}
             />
           </Panel>
+          {provenance ? (
+            <Panel title="Data provenance">
+              <KeyValue
+                rows={[
+                  ["Source", provenance.format],
+                  ["Label", <StatusBadge key="st" status={inst.displayStatus} />],
+                  ["Latest session", formatISTDate(provenance.date)],
+                  ["Imported", `${formatIST(provenance.importedAt)} IST`],
+                  ["How", provenance.mode === "daily" ? "Daily update" : provenance.mode === "manual" ? "Manual import" : provenance.mode === "backfill" ? "Historical backfill" : "Archive import"],
+                  ["File", <span key="f" className="block max-w-[170px] truncate" title={provenance.sourceUrl ?? provenance.fileName}>{provenance.fileName}</span>],
+                ]}
+              />
+              <p className="mt-2 text-[10.5px] text-faint">Prices are as traded (not adjusted for splits or bonuses). Fundamentals are not part of exchange files.</p>
+            </Panel>
+          ) : null}
           {!isIndex ? (
             <Panel title="Key ratios" footer={fundamentals ? `Fundamentals as of ${formatISTDate(fundamentals.asOf)}` : undefined}>
               {fundamentals ? (

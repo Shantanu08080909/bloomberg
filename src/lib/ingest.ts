@@ -59,6 +59,17 @@ export const DATA_SOURCE_DEFS: (typeof s.dataSources.$inferInsert)[] = [
     refreshIntervalMinutes: 30,
   },
   {
+    id: "eod",
+    name: "NSE/BSE end-of-day bhavcopy",
+    kind: "market",
+    enabled: true,
+    defaultStatus: "eod",
+    homepage: "https://www.nseindia.com/all-reports",
+    termsNote:
+      "Official exchange bhavcopy files (and optionally the TejHQ archive) imported by you. Exchange terms govern use; redistribution is not assumed to be permitted.",
+    refreshIntervalMinutes: 24 * 60,
+  },
+  {
     id: "user",
     name: "User-supplied data",
     kind: "economic",

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { NAV_ITEMS } from "../../src/lib/nav";
+import { udiffCsv } from "../fixtures/eod";
 
 const USER = { username: "e2e_owner", password: "e2e-password-123" };
 
@@ -63,8 +64,12 @@ test("every navigation item opens a working page", async ({ page }) => {
 
 test("keyboard search opens a security page with a rendered chart", async ({ page }) => {
   await login(page);
-  await page.keyboard.press("/");
   const input = page.getByRole("combobox", { name: /search securities/i }).or(page.getByPlaceholder(/Search symbol, company, ISIN/));
+  // The shortcut only works once the page has hydrated; retry until it opens.
+  await expect(async () => {
+    await page.keyboard.press("/");
+    await expect(input.first()).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
   await input.first().fill("kaveri");
   await expect(page.getByRole("option", { name: /KVRBANK/ }).first()).toBeVisible();
   await page.keyboard.press("Enter");
@@ -198,4 +203,21 @@ test("mobile layout exposes navigation through the menu button", async ({ browse
   await page.getByRole("dialog", { name: "Navigation" }).getByRole("link", { name: "Stock Screener" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Stock Screener" })).toBeVisible();
   await ctx.close();
+});
+
+test("owner can import an official bhavcopy file and see its provenance", async ({ page }) => {
+  await login(page);
+  await page.goto("/providers");
+  await page.waitForLoadState("networkidle"); // the upload handler is attached on hydration
+  // Invented values in the official UDiFF layout.
+  const csv = udiffCsv([{ date: "2026-09-30", symbol: "E2ETESTCO", isin: "INE999Z01011", o: 10, h: 12, l: 9, c: 11, prev: 10, vol: 1234 }]);
+  await page.locator("#eod-files").setInputFiles({ name: "BhavCopy_NSE_CM_0_0_0_20260930_F_0000.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await expect(page.getByText("1 of 1 file(s) imported")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "BhavCopy_NSE_CM_0_0_0_20260930_F_0000.csv" }).first()).toBeVisible();
+  // The same file again is recognised and skipped.
+  await page.locator("#eod-files").setInputFiles({ name: "again.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await expect(page.getByText(/Already imported/).first()).toBeVisible();
+  // Non-data files are refused by the API.
+  const res = await page.request.post("/api/eod/import", { multipart: { files: { name: "x.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") } } });
+  expect(res.status()).toBe(400);
 });

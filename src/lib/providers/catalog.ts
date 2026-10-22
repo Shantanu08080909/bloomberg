@@ -22,20 +22,31 @@ export const SOURCE_CATALOG: SourceEvaluation[] = [
     link: "/help#demo-data",
   },
   {
-    name: "National Stock Exchange of India (NSE)",
-    scope: "Real-time, delayed and end-of-day market data",
-    status: "not-integrated",
+    name: "NSE — UDiFF Common Bhavcopy (equity, end of day)",
+    scope: "Daily OHLCV, prev close, volume, turnover and trades for every NSE cash-market security. Files BhavCopy_NSE_CM_0_0_0_YYYYMMDD_F_0000.csv.zip from 8 Jul 2024; legacy cmDDMMMYYYYbhav.csv.zip before that; index closing values in ind_close_all_DDMMYYYY.csv",
+    status: "integrated",
+    adapterId: "eod",
     notes:
-      "Exchange market data is distributed under licence (NSE's data products and authorised vendors). No free public API with redistribution rights was identified, and automated scraping of the exchange website is not used. Integrate through a licensed vendor whose terms permit your use.",
-    link: "https://www.nseindia.com",
+      "Parser and manual import implemented and tested against the official column layout. Automated download is optional (EOD_DOWNLOAD_ENABLED) and uses an honest User-Agent with no cookie warm-up, browser spoofing or TLS impersonation — NSE's servers may refuse such requests (403), in which case download the files from the All Reports page and import them. Not reachable from the build environment. Index data belongs to NSE Indices Ltd. Redistribution is not assumed; CSV export is off by default.",
+    link: "https://www.nseindia.com/all-reports",
   },
   {
-    name: "BSE Ltd",
-    scope: "Real-time, delayed and end-of-day market data, corporate announcements",
-    status: "not-integrated",
+    name: "BSE — UDiFF Common Bhavcopy (equity, end of day)",
+    scope: "Daily OHLCV, prev close, volume, turnover and trades for BSE equity groups. Files BhavCopy_BSE_CM_0_0_0_YYYYMMDD_F_0000.CSV from 8 Jul 2024",
+    status: "integrated",
+    adapterId: "eod",
     notes:
-      "BSE market data feeds are licensed products. The public website is not used as an API. Connect a licensed vendor or use the Alpha Vantage adapter for BSE end-of-day data if its terms fit your use.",
-    link: "https://www.bseindia.com",
+      "Downloaded and imported successfully from the build environment with a plain request. Non-trading days return a web page instead of a file, which is detected and not imported. Legacy (pre-July 2024) BSE files identify securities by scrip code only and are not supported. Redistribution is not assumed; CSV export is off by default.",
+    link: "https://www.bseindia.com/markets/MarketInfo/BhavCopy",
+  },
+  {
+    name: "TejHQ Indian Markets archive (tej-bazaar)",
+    scope: "Third-party Parquet archive of NSE bhavcopy from 2010 and BSE from Jul 2024, rebuilt daily from exchange files",
+    status: "integrated",
+    adapterId: "eod",
+    notes:
+      "Optional (TEJ_ARCHIVE_ENABLED). Code is MIT; the dataset card declares MIT and states that bhavcopy is free to redistribute, but cites no exchange terms and itself advises verifying exchange terms before commercial use. Its collectors send browser-like headers, and its corporate-actions fetcher uses Chrome TLS impersonation and NSE cookie warm-up. Imported rows are labelled HISTORICAL, attributed to TejHQ, never overwrite official files, and are not exportable. Prices are as traded (the archive's adjusted-price tree is not imported).",
+    link: "https://github.com/TejHQ/Tej-Bazaar",
   },
   {
     name: "Alpha Vantage",

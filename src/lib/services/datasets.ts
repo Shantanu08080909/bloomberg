@@ -51,7 +51,35 @@ export const DATASETS: DatasetDef[] = [
       { name: "low", type: "numeric(20,4)", description: "Low price (INR)" },
       { name: "close", type: "numeric(20,4)", description: "Close price (INR, split-adjusted in demo)" },
       { name: "volume", type: "bigint", description: "Shares traded" },
+      { name: "prev_close", type: "numeric(20,4)", description: "Previous close reported by the exchange file" },
+      { name: "turnover", type: "numeric(24,2)", description: "Traded value, INR" },
+      { name: "trades", type: "bigint", description: "Number of trades" },
+      { name: "origin", type: "text", description: "official (exchange file) | archive (TejHQ) | empty for demo" },
+      { name: "import_id", type: "integer", description: "Import that wrote the bar (see Import history)" },
       { name: "source_id", type: "text", description: "Data source" },
+    ],
+  },
+  {
+    id: "import_files",
+    name: "Import history",
+    description: "Provenance of imported end-of-day data: one row per file with format, mode, sessions, row counts, SHA-256 and timestamp.",
+    filters: ["from", "to", "type"],
+    columns: [
+      { name: "id", type: "integer", description: "Import id (referenced by price_bars.import_id)" },
+      { name: "imported_at", type: "timestamptz", description: "When the file was imported" },
+      { name: "file_name", type: "text", description: "File name" },
+      { name: "source_url", type: "text", description: "URL when downloaded automatically" },
+      { name: "format", type: "text", description: "nse_udiff | nse_legacy | bse_udiff | nse_index | tej_parquet" },
+      { name: "exchange", type: "text", description: "NSE or BSE" },
+      { name: "origin", type: "text", description: "official | archive" },
+      { name: "mode", type: "text", description: "daily | backfill | manual | archive" },
+      { name: "trade_date_from", type: "date", description: "First session in the file" },
+      { name: "trade_date_to", type: "date", description: "Last session in the file" },
+      { name: "rows_accepted", type: "integer", description: "Rows accepted" },
+      { name: "rows_rejected", type: "integer", description: "Rows rejected by validation" },
+      { name: "bars_written", type: "integer", description: "Bars inserted or updated" },
+      { name: "status", type: "text", description: "success | error | skipped" },
+      { name: "sha256", type: "text", description: "SHA-256 of the file contents" },
     ],
   },
   {
@@ -163,7 +191,7 @@ export async function runDatasetQuery(db: Database, sourceId: string, q: DataQue
         .limit(limit)
         .offset(offset);
       const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.instruments).where(where);
-      return { columns: DATASETS[0]!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
+      return { columns: DATASETS.find((d) => d.id === "instruments")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
     }
     case "price_bars": {
       const where = and(instCond(), eq(s.priceBars.sourceId, sourceId), q.from ? gte(s.priceBars.date, q.from) : undefined, q.to ? lte(s.priceBars.date, q.to) : undefined);
@@ -174,9 +202,24 @@ export async function runDatasetQuery(db: Database, sourceId: string, q: DataQue
           .orderBy(desc(s.priceBars.date), asc(s.instruments.exchange))
           .limit(limit)
           .offset(offset)
-      ).map((r) => ({ date: r.price_bars.date, symbol: r.instruments.symbol, exchange: r.instruments.exchange, open: r.price_bars.open, high: r.price_bars.high, low: r.price_bars.low, close: r.price_bars.close, volume: r.price_bars.volume, source_id: r.price_bars.sourceId }));
+      ).map((r) => ({
+        date: r.price_bars.date,
+        symbol: r.instruments.symbol,
+        exchange: r.instruments.exchange,
+        open: r.price_bars.open,
+        high: r.price_bars.high,
+        low: r.price_bars.low,
+        close: r.price_bars.close,
+        volume: r.price_bars.volume,
+        prev_close: r.price_bars.prevClose,
+        turnover: r.price_bars.turnover,
+        trades: r.price_bars.trades,
+        origin: r.price_bars.origin,
+        import_id: r.price_bars.importId,
+        source_id: r.price_bars.sourceId,
+      }));
       const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.priceBars).innerJoin(s.instruments, eq(s.instruments.id, s.priceBars.instrumentId)).where(where);
-      return { columns: DATASETS[1]!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
+      return { columns: DATASETS.find((d) => d.id === "price_bars")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
     }
     case "quotes": {
       const where = and(instCond(), eq(s.quotes.sourceId, sourceId));
@@ -191,7 +234,7 @@ export async function runDatasetQuery(db: Database, sourceId: string, q: DataQue
         data_status: r.quotes.dataStatus,
       }));
       const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.quotes).innerJoin(s.instruments, eq(s.instruments.id, s.quotes.instrumentId)).where(where);
-      return { columns: DATASETS[2]!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
+      return { columns: DATASETS.find((d) => d.id === "quotes")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
     }
     case "fundamentals": {
       const where = and(instCond(), eq(s.companyFundamentals.sourceId, sourceId));
@@ -208,7 +251,7 @@ export async function runDatasetQuery(db: Database, sourceId: string, q: DataQue
         dividend_yield: r.company_fundamentals.dividendYield,
       }));
       const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.companyFundamentals).innerJoin(s.instruments, eq(s.instruments.id, s.companyFundamentals.instrumentId)).where(where);
-      return { columns: DATASETS[3]!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
+      return { columns: DATASETS.find((d) => d.id === "fundamentals")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
     }
     case "corporate_actions": {
       const where = and(instCond(), eq(s.corporateActions.sourceId, sourceId), q.from ? gte(s.corporateActions.exDate, q.from) : undefined, q.to ? lte(s.corporateActions.exDate, q.to) : undefined, q.type ? eq(s.corporateActions.actionType, q.type.toUpperCase()) : undefined);
@@ -220,7 +263,35 @@ export async function runDatasetQuery(db: Database, sourceId: string, q: DataQue
         description: r.corporate_actions.description,
       }));
       const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.corporateActions).innerJoin(s.instruments, eq(s.instruments.id, s.corporateActions.instrumentId)).where(where);
-      return { columns: DATASETS[4]!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
+      return { columns: DATASETS.find((d) => d.id === "corporate_actions")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: [sourceId] };
+    }
+    case "import_files": {
+      const where = and(
+        eq(s.importFiles.sourceId, "eod"),
+        q.from ? sql`${s.importFiles.importedAt} >= ${q.from}::date` : undefined,
+        q.to ? sql`${s.importFiles.importedAt} < (${q.to}::date + 1)` : undefined,
+        q.type ? eq(s.importFiles.format, q.type.toLowerCase()) : undefined,
+      );
+      const rows = (await db.select().from(s.importFiles).where(where).orderBy(desc(s.importFiles.importedAt)).limit(limit).offset(offset)).map((r) => ({
+        id: r.id,
+        imported_at: r.importedAt.toISOString(),
+        file_name: r.fileName,
+        source_url: r.sourceUrl,
+        format: r.format,
+        exchange: r.exchange,
+        origin: r.origin,
+        mode: r.mode,
+        trade_date_from: r.tradeDateFrom,
+        trade_date_to: r.tradeDateTo,
+        rows_accepted: r.rowsAccepted,
+        rows_rejected: r.rowsRejected,
+        bars_written: r.barsWritten,
+        status: r.status,
+        sha256: r.sha256,
+      }));
+      const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.importFiles).where(where);
+      // Provenance metadata written by this application; exportable.
+      return { columns: DATASETS.find((d) => d.id === "import_files")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: ["user"] };
     }
     case "economic_observations": {
       const where = and(eq(s.economicObservations.seriesId, q.series!), q.from ? gte(s.economicObservations.periodDate, q.from) : undefined, q.to ? lte(s.economicObservations.periodDate, q.to) : undefined);
@@ -228,7 +299,7 @@ export async function runDatasetQuery(db: Database, sourceId: string, q: DataQue
       const rows = res.map((r) => ({ series_id: r.economic_observations.seriesId, period_date: r.economic_observations.periodDate, value: r.economic_observations.value, unit: r.economic_series.unit, source_id: r.economic_series.sourceId }));
       const [c] = await db.select({ n: sql<number>`count(*)::int` }).from(s.economicObservations).where(where);
       const [meta] = await db.select({ sourceId: s.economicSeries.sourceId }).from(s.economicSeries).where(eq(s.economicSeries.id, q.series!));
-      return { columns: DATASETS[5]!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: meta ? [meta.sourceId] : [] };
+      return { columns: DATASETS.find((d) => d.id === "economic_observations")!.columns.map((x) => x.name), rows, total: Number(c?.n ?? 0), sourceIds: meta ? [meta.sourceId] : [] };
     }
   }
   return { columns: [], rows: [], total: 0, sourceIds: [] };
@@ -248,7 +319,8 @@ export async function datasetCatalog(db: Database, sourceId: string) {
     one(db.select({ n: sql<number>`count(*)::int`, t: sql<unknown>`max(${s.corporateActions.exDate})::text` }).from(s.corporateActions).where(eq(s.corporateActions.sourceId, sourceId))),
     one(db.select({ n: sql<number>`count(*)::int`, t: sql<unknown>`max(${s.economicSeries.fetchedAt})` }).from(s.economicObservations).innerJoin(s.economicSeries, eq(s.economicSeries.id, s.economicObservations.seriesId))),
   ]);
-  return { instruments, price_bars: bars, quotes, fundamentals, corporate_actions: actions, economic_observations: econ } as Record<string, { count: number; latest: string | null }>;
+  const imports = await one(db.select({ n: sql<number>`count(*)::int`, t: sql<unknown>`max(${s.importFiles.importedAt})` }).from(s.importFiles).where(eq(s.importFiles.sourceId, "eod")));
+  return { instruments, price_bars: bars, import_files: imports, quotes, fundamentals, corporate_actions: actions, economic_observations: econ } as Record<string, { count: number; latest: string | null }>;
 }
 
 /* ------------------------------ CSV import ---------------------------- */

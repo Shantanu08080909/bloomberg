@@ -1,6 +1,7 @@
 import type { Database } from "@/lib/db/client";
 import * as s from "@/lib/db/schema";
-import { rsi, rollingVolatility, sma } from "@/lib/finance/indicators";
+import { eq } from "drizzle-orm";
+import { refreshTechnicalSnapshots, snapshotCount } from "@/lib/eod/technicals";
 import { processLedger, valueHistory, valuePositions, type LedgerTx } from "@/lib/finance/portfolio";
 import { alignSeries, concentration, riskSummary, simpleReturns, correlationMatrix, worstWindows } from "@/lib/finance/risk";
 import type { ScreenRow } from "@/lib/finance/screener";
@@ -22,18 +23,17 @@ export async function getScreenRows(db: Database, sourceId: string): Promise<Scr
   const hit = screenCache.get(sourceId);
   if (hit && hit.key === key) return hit.rows;
 
+  // Technical fields come from snapshots computed at import/seed time.
+  if ((await snapshotCount(db, sourceId)) === 0) await refreshTechnicalSnapshots(db, sourceId);
+  const snaps = new Map((await db.select().from(s.technicalSnapshots).where(eq(s.technicalSnapshots.sourceId, sourceId))).map((x) => [x.instrumentId, x]));
   const fundamentals = new Map((await getAllFundamentals(db, sourceId)).map((f) => [f.instrumentId, f]));
-  const from = last ? addDays(last, -400) : null;
-  const bars = await getBarsForMany(db, instruments.map((i) => i.id), sourceId, from);
 
   const rows: ScreenRow[] = instruments.map((i) => {
     const f = fundamentals.get(i.id);
-    const closes = (bars.get(i.id) ?? []).map((b) => b.close);
-    const lastOf = (xs: (number | null)[]) => (xs.length ? xs[xs.length - 1] ?? null : null);
-    const s50 = closes.length >= 50 ? lastOf(sma(closes, 50)) : null;
-    const s200 = closes.length >= 200 ? lastOf(sma(closes, 200)) : null;
+    const t = snaps.get(i.id);
     const price = i.quote?.price ?? null;
-    const vol30 = closes.length > 30 ? lastOf(rollingVolatility(closes, 30)) : null;
+    const s50 = t?.sma50 ?? null;
+    const s200 = t?.sma200 ?? null;
     return {
       instrumentId: i.id,
       symbol: i.symbol,
@@ -44,6 +44,7 @@ export async function getScreenRows(db: Database, sourceId: string): Promise<Scr
       price,
       changePct: i.quote?.changePct ?? null,
       volume: i.quote?.volume ?? null,
+      turnoverCr: price != null && i.quote?.volume != null ? (price * i.quote.volume) / 1e7 : null,
       marketCapCr: f?.marketCapCr ?? null,
       pe: f?.pe ?? null,
       pb: f?.pb ?? null,
@@ -57,8 +58,10 @@ export async function getScreenRows(db: Database, sourceId: string): Promise<Scr
       sma200: s200,
       priceVsSma50: price != null && s50 ? (price / s50 - 1) * 100 : null,
       priceVsSma200: price != null && s200 ? (price / s200 - 1) * 100 : null,
-      rsi14: closes.length > 14 ? lastOf(rsi(closes, 14)) : null,
-      volatility30: vol30 != null ? vol30 * 100 : null,
+      rsi14: t?.rsi14 ?? null,
+      volatility30: t?.volatility30 != null ? t.volatility30 * 100 : null,
+      return1y: t?.return1y != null ? t.return1y * 100 : null,
+      pctFrom52wHigh: price != null && t?.high52w ? (price / t.high52w - 1) * 100 : null,
       dataStatus: i.displayStatus,
       asOf: i.quote?.asOf?.toISOString() ?? null,
     };

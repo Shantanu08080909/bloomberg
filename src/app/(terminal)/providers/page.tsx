@@ -11,6 +11,7 @@ import { db } from "@/lib/server/db";
 import { EXPORT_POLICY } from "@/lib/server/export-policy";
 import { getSchedulerStatus } from "@/lib/server/scheduler";
 import { listDataSources, listRefreshRuns, syncSourceConfiguration } from "@/lib/services/refresh";
+import { EodPanel } from "./EodPanel";
 import { RefreshSourceButton } from "./RefreshSourceButton";
 
 export const metadata: Metadata = { title: "Data Provider Status" };
@@ -27,6 +28,7 @@ export default async function ProvidersPage() {
     demo: true,
     user: true,
     alphavantage: providers.market.alphavantage.isConfigured(),
+    eod: true,
     fred: providers.economic.fred.isConfigured(),
     rss: providers.news.rss.isConfigured(),
   };
@@ -36,6 +38,7 @@ export default async function ProvidersPage() {
     rss: "Set NEWS_RSS_FEEDS to a comma-separated list of feed URLs you may use.",
     demo: "Always available.",
     user: "Created by Data Explorer → Import CSV.",
+    eod: "Import official files below, or enable EOD_DOWNLOAD_ENABLED.",
   };
 
   return (
@@ -80,6 +83,8 @@ export default async function ProvidersPage() {
         </Panel>
       </div>
 
+      <EodPanel />
+
       <Panel title="Configured sources" bodyClassName="p-0 overflow-x-auto">
         <table className="data-table">
           <thead>
@@ -119,7 +124,7 @@ export default async function ProvidersPage() {
                 </td>
                 <td className="num text-muted">{s.refreshIntervalMinutes > 0 ? `${s.refreshIntervalMinutes} min` : "manual"}</td>
                 <td>{EXPORT_POLICY[s.id]?.allowed ? <Badge tone="up">allowed</Badge> : <Badge tone="down">blocked</Badge>}</td>
-                <td>{["alphavantage", "fred", "rss", "demo"].includes(s.id) ? <RefreshSourceButton sourceId={s.id} disabled={!configured[s.id]} reason={requirement[s.id]} /> : null}</td>
+                <td>{["alphavantage", "fred", "rss"].includes(s.id) ? <RefreshSourceButton sourceId={s.id} disabled={!configured[s.id]} reason={requirement[s.id]} /> : null}</td>
               </tr>
             ))}
           </tbody>
@@ -168,7 +173,7 @@ export default async function ProvidersPage() {
           <tbody>
             {SOURCE_CATALOG.map((c) => (
               <tr key={c.name}>
-                <td>
+                <td className="min-w-[160px] whitespace-normal">
                   {c.link.startsWith("http") ? (
                     <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
                       {c.name}
@@ -179,11 +184,11 @@ export default async function ProvidersPage() {
                     </Link>
                   )}
                 </td>
-                <td className="max-w-[220px] whitespace-normal text-[11.5px] text-dim">{c.scope}</td>
+                <td className="min-w-[200px] max-w-[260px] whitespace-normal text-[11.5px] text-dim [overflow-wrap:anywhere]">{c.scope}</td>
                 <td>
                   <Badge tone={c.status === "integrated" ? "info" : c.status === "demo" ? "demo" : "neutral"}>{c.status === "not-integrated" ? "not integrated" : c.status}</Badge>
                 </td>
-                <td className="max-w-[520px] whitespace-normal text-[11.5px] text-muted">{c.notes}</td>
+                <td className="min-w-[320px] max-w-[560px] whitespace-normal text-[11.5px] text-muted [overflow-wrap:anywhere]">{c.notes}</td>
               </tr>
             ))}
           </tbody>

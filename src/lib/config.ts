@@ -12,7 +12,13 @@ const EnvSchema = z.object({
   COOKIE_SECURE: z.enum(["true", "false", "auto"]).default("auto"),
   ALLOW_REGISTRATION: z.enum(["true", "false"]).default("false"),
 
-  MARKET_DATA_SOURCE: z.enum(["demo", "alphavantage"]).default("demo"),
+  /** auto = imported NSE/BSE end-of-day data when present, otherwise demo. */
+  MARKET_DATA_SOURCE: z.enum(["auto", "demo", "eod", "alphavantage"]).default("auto"),
+  EOD_DOWNLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
+  EOD_AUTO_UPDATE: z.enum(["true", "false"]).default("true"),
+  EOD_EXCHANGES: z.string().default("NSE,BSE"),
+  EOD_EXPORT_ALLOWED: z.enum(["true", "false"]).default("false"),
+  TEJ_ARCHIVE_ENABLED: z.enum(["true", "false"]).default("false"),
   ALPHAVANTAGE_API_KEY: z.string().optional(),
   ALPHAVANTAGE_DAILY_LIMIT: z.coerce.number().int().positive().default(25),
   ALPHAVANTAGE_SYMBOLS: z.string().default(""),
@@ -70,8 +76,19 @@ export function describeConfig() {
     fredConfigured: Boolean(c.FRED_API_KEY),
     rssFeedCount: csvList(c.NEWS_RSS_FEEDS).length,
     smtpConfigured: Boolean(c.SMTP_HOST && c.SMTP_FROM),
+    eodDownloadEnabled: c.EOD_DOWNLOAD_ENABLED === "true",
+    eodAutoUpdate: c.EOD_DOWNLOAD_ENABLED === "true" && c.EOD_AUTO_UPDATE === "true",
+    eodExchanges: eodExchanges(),
+    eodExportAllowed: c.EOD_EXPORT_ALLOWED === "true",
+    tejArchiveEnabled: c.TEJ_ARCHIVE_ENABLED === "true",
     schedulerEnabled: c.SCHEDULER_ENABLED === "true",
     alertCheckIntervalSeconds: c.ALERT_CHECK_INTERVAL_SECONDS,
     registrationAllowed: c.ALLOW_REGISTRATION === "true",
   };
+}
+
+export function eodExchanges(): ("NSE" | "BSE")[] {
+  return csvList(getConfig().EOD_EXCHANGES)
+    .map((x) => x.toUpperCase())
+    .filter((x): x is "NSE" | "BSE" => x === "NSE" || x === "BSE");
 }

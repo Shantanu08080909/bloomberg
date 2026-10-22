@@ -14,7 +14,7 @@ import { CommandPalette } from "./CommandPalette";
 export interface ShellStatus {
   sourceName: string;
   label: string;
-  tone: "demo" | "live" | "delayed" | "eod" | "stale" | "unavailable";
+  tone: "demo" | "live" | "delayed" | "eod" | "historical" | "stale" | "unavailable";
   lastAsOf: string | null;
   mixed: boolean;
 }
@@ -58,6 +58,7 @@ const TONE_CLASSES: Record<ShellStatus["tone"], string> = {
   live: "border-up/40 bg-up-soft text-up",
   delayed: "border-info/40 bg-info/10 text-info",
   eod: "border-line-strong bg-panel-2 text-dim",
+  historical: "border-info/40 bg-info/10 text-info",
   stale: "border-stale/50 bg-stale/10 text-stale",
   unavailable: "border-down/40 bg-down-soft text-down",
 };

@@ -30,6 +30,8 @@ interface Saved {
 }
 
 const DEFAULT_COLUMNS: NumericField[] = ["price", "changePct", "marketCapCr", "pe", "pb", "roe", "dividendYield", "rsi14"];
+/** Used when the source has no fundamentals (exchange end-of-day files). */
+const PRICE_ONLY_COLUMNS: NumericField[] = ["price", "changePct", "volume", "turnoverCr", "rsi14", "priceVsSma50", "volatility30", "return1y", "pctFrom52wHigh"];
 
 const DEFAULT_CONFIG: ScreenConfig = {
   exchanges: ["NSE"],
@@ -52,6 +54,8 @@ function formatField(key: NumericField, v: number | null) {
       return fmtCrore(v);
     case "volume":
       return fmtCompact(v);
+    case "turnoverCr":
+      return v == null ? "—" : `₹${fmtNumber(v, v < 10 ? 2 : 0)} cr`;
     case "pe":
     case "pb":
       return fmtMultiple(v);
@@ -60,6 +64,8 @@ function formatField(key: NumericField, v: number | null) {
     case "changePct":
     case "priceVsSma50":
     case "priceVsSma200":
+    case "return1y":
+    case "pctFrom52wHigh":
     case "revenueGrowth":
     case "profitGrowth":
       return fmtPct(v);
@@ -108,6 +114,16 @@ export function ScreenerClient({ sectors, initialSaved }: { sectors: string[]; i
     const t = setTimeout(() => void run(config), 250);
     return () => clearTimeout(t);
   }, [config, run]);
+
+  // No fundamentals in this source: show price/technical columns and sort by traded value instead of empty columns.
+  const [adapted, setAdapted] = useState(false);
+  useEffect(() => {
+    if (adapted || !result) return;
+    setAdapted(true);
+    if (result.coverage.marketCapCr === 0 && config.columns === DEFAULT_COLUMNS) {
+      setConfig((c) => ({ ...c, columns: PRICE_ONLY_COLUMNS, sortBy: c.sortBy === "marketCapCr" ? "turnoverCr" : c.sortBy }));
+    }
+  }, [result, adapted, config.columns]);
 
   const update = (patch: Partial<ScreenConfig>) => setConfig((c) => ({ ...c, page: 1, ...patch }));
   const setFilter = (i: number, f: ScreenFilter) => update({ filters: config.filters.map((x, k) => (k === i ? f : x)) });
@@ -200,7 +216,7 @@ export function ScreenerClient({ sectors, initialSaved }: { sectors: string[]; i
               <option key={s}>{s}</option>
             ))}
           </select>
-          <p className="mt-1 text-[10.5px] text-faint">Ctrl/⌘-click to select several.</p>
+          <p className="mt-1 text-[10.5px] text-faint">{sectors.length ? "Ctrl/⌘-click to select several." : "This data source has no sector classification."}</p>
         </section>
 
         <section className="rounded-panel border border-line bg-panel p-3">
@@ -292,7 +308,7 @@ export function ScreenerClient({ sectors, initialSaved }: { sectors: string[]; i
             <button type="button" onClick={addFilter} className={buttonClass("default", "sm")}>
               <Plus className="size-3.5" aria-hidden /> Add filter
             </button>
-            <button type="button" onClick={() => setConfig({ ...DEFAULT_CONFIG })} className={buttonClass("ghost", "sm")}>
+            <button type="button" onClick={() => setConfig({ ...DEFAULT_CONFIG, ...(result?.coverage.marketCapCr === 0 ? { columns: PRICE_ONLY_COLUMNS, sortBy: "turnoverCr" } : {}) })} className={buttonClass("ghost", "sm")}>
               Clear all
             </button>
           </div>

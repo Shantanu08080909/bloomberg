@@ -153,9 +153,10 @@ export async function getIndices(db: Database, sourceId: string) {
 }
 
 export async function getMovers(db: Database, sourceId: string, limit = 8, exchange = "NSE") {
-  const equities = (await listInstrumentsWithQuotes(db, sourceId, { types: ["EQUITY", "ETF"], exchange })).filter(
-    (r) => r.quote?.changePct != null,
-  );
+  const all = await listInstrumentsWithQuotes(db, sourceId, { types: ["EQUITY", "ETF"], exchange });
+  // Only securities that traded in the latest session: a suspended stock's old move is not today's move.
+  const latest = all.reduce((m, r) => Math.max(m, r.quote?.asOf?.getTime() ?? 0), 0);
+  const equities = all.filter((r) => r.quote?.changePct != null && r.quote.asOf.getTime() === latest);
   const byChange = [...equities].sort((a, b) => b.quote!.changePct! - a.quote!.changePct!);
   return {
     gainers: byChange.filter((r) => r.quote!.changePct! > 0).slice(0, limit),
@@ -164,6 +165,21 @@ export async function getMovers(db: Database, sourceId: string, limit = 8, excha
       .filter((r) => r.quote?.volume != null)
       .sort((a, b) => b.quote!.price * b.quote!.volume! - a.quote!.price * a.quote!.volume!)
       .slice(0, limit),
+  };
+}
+
+/** Advancers / decliners across all equities of an exchange in its latest session. */
+export async function getExchangeBreadth(db: Database, sourceId: string, exchange: string) {
+  const rows = await listInstrumentsWithQuotes(db, sourceId, { types: ["EQUITY", "ETF"], exchange });
+  const latest = rows.reduce((m, r) => Math.max(m, r.quote?.asOf?.getTime() ?? 0), 0);
+  if (!latest) return null;
+  const today = rows.filter((r) => r.quote && r.quote.asOf.getTime() === latest && r.quote.changePct != null);
+  return {
+    constituents: today.length,
+    covered: today.length,
+    advancers: today.filter((r) => r.quote!.changePct! > 0).length,
+    decliners: today.filter((r) => r.quote!.changePct! < 0).length,
+    unchanged: today.filter((r) => r.quote!.changePct === 0).length,
   };
 }
 
@@ -302,5 +318,35 @@ export async function getMarketDataStatus(db: Database, sourceId: string) {
     lastSuccessAt: src?.lastSuccessAt ?? null,
     lastError: src?.lastError ?? null,
     lastErrorAt: src?.lastErrorAt ?? null,
+  };
+}
+
+const FORMAT_LABEL: Record<string, string> = {
+  nse_udiff: "NSE UDiFF Common Bhavcopy",
+  nse_legacy: "NSE equity bhavcopy (legacy)",
+  bse_udiff: "BSE UDiFF Common Bhavcopy",
+  nse_index: "NSE index closing values",
+  tej_parquet: "TejHQ archive (third-party)",
+};
+
+/** Where the latest stored bar of an instrument came from. Null for generated demo data. */
+export async function getLatestBarProvenance(db: Database, instrumentId: number, sourceId: string) {
+  const [row] = await db
+    .select({ date: s.priceBars.date, origin: s.priceBars.origin, file: s.importFiles })
+    .from(s.priceBars)
+    .innerJoin(s.importFiles, eq(s.importFiles.id, s.priceBars.importId))
+    .where(and(eq(s.priceBars.instrumentId, instrumentId), eq(s.priceBars.sourceId, sourceId)))
+    .orderBy(desc(s.priceBars.date))
+    .limit(1);
+  if (!row) return null;
+  return {
+    date: row.date,
+    origin: row.origin,
+    format: FORMAT_LABEL[row.file.format] ?? row.file.format,
+    mode: row.file.mode,
+    fileName: row.file.fileName,
+    sourceUrl: row.file.sourceUrl,
+    importedAt: row.file.importedAt,
+    importId: row.file.id,
   };
 }

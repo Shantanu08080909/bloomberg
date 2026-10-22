@@ -9,7 +9,7 @@ import { securityHref, toQuoteDTO } from "@/lib/dto";
 import { fmtPrice } from "@/lib/format";
 import { getActiveSourceId, getShellStatus } from "@/lib/server/context";
 import { db } from "@/lib/server/db";
-import { getAllFundamentals, getBreadth, getIndexConstituents, getIndexMetadata, getIndices, getMovers, listInstrumentsWithQuotes } from "@/lib/services/market";
+import { getAllFundamentals, getBreadth, getExchangeBreadth, getIndexConstituents, getIndexMetadata, getIndices, getMovers, listInstrumentsWithQuotes } from "@/lib/services/market";
 import { IndexConstituents } from "./IndexConstituents";
 
 export const metadata: Metadata = { title: "Indian Markets" };
@@ -47,9 +47,22 @@ export default async function MarketsPage({ searchParams }: { searchParams: Prom
   const sectorRows = [...sectors.entries()].map(([name, s]) => ({ name, change: s.weighted / s.cap, n: s.n, adv: s.adv })).sort((a, b) => b.change - a.change);
   const maxAbs = Math.max(0.01, ...sectorRows.map((r) => Math.abs(r.change)));
 
+  // Size tiles by market cap; when the source has no market caps (exchange files), use the session's traded value.
+  const byCap = equities.some((e) => caps.get(e.id) != null);
+  const latestTs = equities.reduce((m, e) => Math.max(m, e.quote?.asOf?.getTime() ?? 0), 0);
   const heat = equities
-    .filter((e) => caps.get(e.id) != null)
-    .map((e) => ({ symbol: e.symbol, exchange: e.exchange, name: e.name, sector: e.sector ?? "Other", marketCapCr: caps.get(e.id)!, changePct: e.quote?.changePct ?? null }));
+    .filter((e) => (byCap ? caps.get(e.id) != null : e.quote && e.quote.asOf.getTime() === latestTs && e.quote.volume))
+    .map((e) => ({
+      symbol: e.symbol,
+      exchange: e.exchange,
+      name: e.name,
+      sector: e.sector ?? (e.series ? `Series ${e.series}` : "Unclassified"),
+      marketCapCr: byCap ? caps.get(e.id)! : ((e.quote?.price ?? 0) * (e.quote?.volume ?? 0)) / 1e7,
+      changePct: e.quote?.changePct ?? null,
+    }))
+    .sort((a, b) => b.marketCapCr - a.marketCapCr)
+    .slice(0, 400);
+  const exBreadth = breadths.some(Boolean) ? null : await getExchangeBreadth(database, sourceId, exchange);
 
   return (
     <div className="flex flex-col gap-3">
@@ -129,8 +142,12 @@ export default async function MarketsPage({ searchParams }: { searchParams: Prom
       </Panel>
 
       <div className="grid gap-3 xl:grid-cols-3">
-        <Panel title={`${exchange} sector heatmap · size = market cap, colour = day change`} className="xl:col-span-2">
-          <MarketHeatmap cells={heat} />
+        <Panel
+          title={byCap ? `${exchange} sector heatmap · size = market cap, colour = day change` : `${exchange} heatmap · top ${heat.length} by traded value, grouped by series`}
+          className="xl:col-span-2"
+          footer={byCap ? undefined : "Exchange files do not include market capitalisation or sectors, so tiles are sized by the latest session's traded value."}
+        >
+          <MarketHeatmap cells={heat} sizeLabel={byCap ? "Mkt cap" : "Traded value"} />
         </Panel>
         <div className="flex flex-col gap-3">
           <Panel title="Sector performance (cap-weighted)">
@@ -155,7 +172,12 @@ export default async function MarketsPage({ searchParams }: { searchParams: Prom
               <p className="text-[12px] text-muted">Sector data unavailable.</p>
             )}
           </Panel>
-          {indices[0] ? (
+          {exBreadth ? (
+            <Panel title="Breadth">
+              <Breadth data={exBreadth} label={`All ${exchange} equities, latest session`} />
+            </Panel>
+          ) : null}
+          {indices[0] && !exBreadth ? (
             <Panel title="Breadth">
               <div className="flex flex-col gap-4">
                 {indices.slice(0, 3).map((i, k) => (

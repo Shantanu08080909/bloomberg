@@ -1,8 +1,8 @@
 # OpenFinance Terminal
 
-A local, single-machine financial research terminal focused on Indian markets (NSE and BSE). It runs on your computer with no paid services and no API keys, using a clearly labelled **demo-data mode**, and can be connected to real data providers when you have suitable credentials and usage rights.
+A local, single-machine financial research terminal focused on Indian markets (NSE and BSE). It runs on your computer with no paid services and no API keys, using a clearly labelled **demo-data mode**, and can store **real NSE/BSE end-of-day prices** from the exchanges' official bhavcopy files (see [docs/EOD_DATA.md](docs/EOD_DATA.md)).
 
-> **Demo mode is not real market data.** Out of the box every price, fundamental, index level, headline and economic figure is synthetic, generated deterministically on your machine about **fictional companies**. Every affected screen carries a persistent “DEMO DATA — NOT REAL MARKET PRICES” banner and per-value DEMO labels.
+> **Demo mode is not real market data.** Until you import end-of-day files, every price, fundamental, index level, headline and economic figure is synthetic, generated deterministically on your machine about **fictional companies**. Every affected screen carries a persistent “DEMO DATA — NOT REAL MARKET PRICES” banner and per-value DEMO labels.
 
 OpenFinance Terminal is an original project. It is not affiliated with Bloomberg, NSE, BSE, SEBI, RBI or any data vendor and does not use their data, software, trademarks or interface assets. Nothing in it is investment, tax or legal advice.
 
@@ -95,6 +95,11 @@ Keyboard: **Ctrl/⌘ K** or **/** opens search; ↑ ↓ Enter Esc navigate it.
 | `npm run db:health` | Check the database is reachable and migrated |
 | `npm run db:generate` | Generate a new SQL migration after editing `src/lib/db/schema.ts` |
 | `npm run verify` | lint + typecheck + tests + build |
+| `npm run eod -- status` | Stored end-of-day data and recent imports |
+| `npm run eod -- import <files or folders>` | Import official NSE/BSE bhavcopy CSV/ZIP files (or TejHQ parquet) |
+| `npm run eod -- update` | Download sessions since the last import (needs `EOD_DOWNLOAD_ENABLED=true`) |
+| `npm run eod -- backfill --exchange NSE\|BSE\|both --from YYYY-MM-DD --to YYYY-MM-DD` | Download a historical range |
+| `npm run eod -- tej --exchange NSE --year 2026` | Import one year of the optional TejHQ archive (needs `TEJ_ARCHIVE_ENABLED=true`) |
 
 Playwright needs a Chromium browser: run `npx playwright install chromium` once if it is not already installed.
 
@@ -104,7 +109,7 @@ Playwright needs a Chromium browser: run `npx playwright install chromium` once 
 
 The app uses **PostgreSQL** in one of two modes, chosen automatically:
 
-1. **Embedded PostgreSQL (default)** — [PGlite](https://pglite.dev), PostgreSQL compiled to WebAssembly, stored in `./data/pglite`. No installation, works on Windows, macOS and Linux. Only one process can open the data directory at a time, so stop the server before running `npm run db:*` scripts.
+1. **Embedded PostgreSQL (default)** — [PGlite](https://pglite.dev), PostgreSQL compiled to WebAssembly, stored in `./data/pglite`. No installation, works on Windows, macOS and Linux. Only one process can open the data directory at a time, so stop the server before running `npm run db:*` or `npm run eod` scripts.
 2. **PostgreSQL server** — set `DATABASE_URL` in `.env.local`. A ready-made server is in `docker-compose.yml`:
 
    ```bash
@@ -118,7 +123,7 @@ The app uses **PostgreSQL** in one of two modes, chosen automatically:
 
 Migrations are versioned SQL in `drizzle/`, generated from the schema in `src/lib/db/schema.ts` by drizzle-kit and applied by `npm run db:setup` (and automatically on first server start). Moving from embedded to server mode: run `npm run db:setup` against the new `DATABASE_URL`; user records are not migrated automatically between the two stores.
 
-Tables: users, sessions, profiles, data_sources, data_refresh_runs, app_state, instruments, index_metadata, index_constituents, quotes, price_bars, company_fundamentals, financial_statements, corporate_actions, news_articles, economic_series, economic_observations, economic_events, watchlists, watchlist_items, portfolios, transactions, alerts, notification_history, research_notes, saved_articles, saved_screeners, workspace_layouts — with foreign keys, unique constraints, indexes, `numeric` money columns and `timestamptz` timestamps.
+Tables: users, sessions, profiles, data_sources, data_refresh_runs, app_state, instruments, index_metadata, index_constituents, quotes, price_bars, company_fundamentals, financial_statements, corporate_actions, news_articles, economic_series, economic_observations, economic_events, watchlists, watchlist_items, portfolios, transactions, alerts, notification_history, research_notes, saved_articles, saved_screeners, workspace_layouts, import_files (end-of-day import provenance), technical_snapshots — with foreign keys, unique constraints, indexes, `numeric` money columns and `timestamptz` timestamps.
 
 ---
 
@@ -133,13 +138,21 @@ Copy `.env.example` to `.env.local`. Everything is optional.
 | `ALLOW_REGISTRATION` | `false` | Allow accounts beyond the first |
 | `SESSION_TTL_DAYS` | `14` | Session lifetime |
 | `COOKIE_SECURE` | `auto` | `true` behind HTTPS |
-| `MARKET_DATA_SOURCE` | `demo` | `demo` or `alphavantage` |
+| `MARKET_DATA_SOURCE` | `auto` | `auto` = imported end-of-day data when present, otherwise demo; or force `demo`, `eod`, `alphavantage` |
+| `EOD_DOWNLOAD_ENABLED` | `false` | Allow automated downloads of the exchanges' published bhavcopy files |
+| `EOD_AUTO_UPDATE`, `EOD_PUBLISH_AFTER_IST`, `EOD_EXCHANGES` | `true`, `19:00`, `NSE,BSE` | Daily update after the exchanges publish |
+| `EOD_NSE_INDICES`, `EOD_MIN_INTERVAL_SECONDS`, `EOD_MAX_DAYS_PER_RUN` | `true`, `3`, `60` | Index closing file; request spacing; backfill size per run |
+| `EOD_NSE_UDIFF_URL`, `EOD_NSE_LEGACY_URL`, `EOD_NSE_INDEX_URL`, `EOD_BSE_UDIFF_URL` | official locations | Override if the exchanges move their files |
+| `EOD_EXPORT_ALLOWED` | `false` | Allow CSV export of imported exchange data |
+| `TEJ_ARCHIVE_ENABLED` | `false` | Optional third-party historical archive |
 | `ALPHAVANTAGE_API_KEY`, `ALPHAVANTAGE_SYMBOLS`, `ALPHAVANTAGE_DAILY_LIMIT`, `ALPHAVANTAGE_DATA_STATUS` | — | Alpha Vantage adapter |
 | `FRED_API_KEY`, `FRED_SERIES` | — | FRED adapter |
 | `NEWS_RSS_FEEDS` | — | Comma-separated feeds you may use |
 | `STALE_AFTER_MINUTES_LIVE` / `_DELAYED`, `STALE_AFTER_HOURS_EOD` | 15 / 60 / 96 | When real data is labelled STALE |
 | `SCHEDULER_ENABLED`, `ALERT_CHECK_INTERVAL_SECONDS` | `true`, `60` | In-process alert checks and provider refreshes |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | — | Optional alert emails |
+
+> **Upgrading an existing install:** older copies of `.env.example` set `MARKET_DATA_SOURCE=demo`, which keeps the terminal in demo mode after you import data. Change it to `auto` in your `.env.local`.
 
 Secrets are read only on the server (`src/lib/config.ts` is `server-only`); no variable uses the `NEXT_PUBLIC_` prefix.
 
@@ -153,8 +166,14 @@ Secrets are read only on the server (`src/lib/config.ts` is `server-only`); no v
 | Alpha Vantage | Adapter implemented, **not verified live** | BSE quotes and daily bars (`SYMBOL.BSE`). Needs a key. Free tier is heavily rate-limited. No fundamentals/indices/corporate actions. Exports blocked. |
 | FRED | Adapter implemented, **not verified live** | US and selected international series. Needs a free key. Subject to the FRED API Terms of Use. |
 | RSS / Atom | Adapter implemented, **not verified live** | Headlines, links, times and short feed descriptions only. You must confirm each feed's terms. |
-| NSE, BSE | **Not integrated** | Exchange data is licensed; no free API with redistribution rights was identified and the websites are not scraped. Integrate through a licensed vendor. |
+| NSE/BSE bhavcopy, manual import | **Working** | Official UDiFF Common Bhavcopy (NSE and BSE, from Jul 2024), legacy NSE bhavcopy, NSE index closing file. Upload on Data Provider Status or `npm run eod -- import`. Tested with a real BSE file; NSE files tested in the official layout. |
+| BSE bhavcopy, automated download | **Verified live** (Oct 2026) | Off by default (`EOD_DOWNLOAD_ENABLED`). Six sessions downloaded and imported; a holiday was detected and skipped. |
+| NSE bhavcopy, automated download | Implemented, **not verified live** | nseindia.com was unreachable from the build environment. NSE may refuse non-browser requests (HTTP 403); the downloader does not imitate a browser and stops, so use manual import. |
+| TejHQ archive (third-party) | **Verified live**, optional | Yearly parquet of NSE (2010→) and BSE (Jul 2024→) bhavcopy, labelled HISTORICAL, never overwrites official files, export blocked. Licence caveats in [docs/EOD_DATA.md](docs/EOD_DATA.md#licensing-and-terms). |
+| NSE/BSE real-time, fundamentals, sectors | **Not integrated** | Need a licensed vendor; the exchange websites and their internal APIs are not scraped. |
 | RBI (DBIE), MoSPI, SEBI | **Not integrated** | No documented, stable API with suitable terms was identified. Use Data Explorer → Import CSV for releases you download yourself. |
+
+End-of-day data powers the dashboard, charts, screener (price, liquidity and technical fields), gainers/losers, breadth, technical analysis, risk and portfolio valuation. Exchange files contain no market caps, sectors or fundamentals, so those screens show “unavailable”. **Imported exchange data is for your personal, local use**: making files viewable does not grant redistribution rights, and nothing here assumes it does. Setup, the daily update procedure and the licensing review are in [docs/EOD_DATA.md](docs/EOD_DATA.md).
 
 “Not verified live” means the adapter was written from public documentation and tested with mocked HTTP responses; the build environment had no network access to those services. Each adapter applies request timeouts, bounded exponential-backoff retries, local rate limits and Zod response validation, and records every refresh in `data_refresh_runs`.
 
@@ -162,7 +181,7 @@ To add a provider, implement `MarketDataProvider`, `NewsProvider` or `EconomicDa
 
 ### Data labels
 
-`DEMO`, `LIVE`, `DELAYED`, `END OF DAY`, `STALE`, `UNAVAILABLE`. Each quote carries its source timestamp (`as_of`) and the time it was stored (`fetched_at`). Demo data never becomes live or stale. Missing fundamentals are shown as unavailable and are never zero-filled.
+`DEMO`, `LIVE`, `DELAYED`, `END OF DAY`, `HISTORICAL`, `STALE`, `UNAVAILABLE`. END OF DAY = latest session from a daily or manual import of an official file; HISTORICAL = from a backfill or the archive (never turns stale); STALE = END OF DAY older than `STALE_AFTER_HOURS_EOD`. Every imported bar links to an import record (file, SHA-256, source URL, format, mode, time, user). Each quote carries its source timestamp (`as_of`) and the time it was stored (`fetched_at`). Demo data never becomes live or stale. Missing fundamentals are shown as unavailable and are never zero-filled.
 
 ---
 
@@ -179,11 +198,12 @@ src/
   lib/db/                schema, client (PGlite | pg), seed, health
   lib/market/            normalized types, provider interfaces, freshness labels
   lib/providers/         demo generator, Alpha Vantage, FRED, RSS, HTTP policy
+  lib/eod/               bhavcopy parsers, importer, downloader, technical snapshots
   lib/finance/           indicators, valuation, risk, portfolio ledger, screener
   lib/services/          market reads, user-scoped data, analytics, alerts, refresh
   lib/server/            DB bootstrap, API wrapper, scheduler, export policy
 drizzle/                 versioned SQL migrations
-scripts/                 db setup/seed/health, start.sh, start.ps1
+scripts/                 db setup/seed/health, eod CLI, start.sh, start.ps1
 tests/unit, tests/integration, tests/e2e
 ```
 
@@ -212,15 +232,15 @@ TEST_DATABASE_URL=postgres://user@localhost:5432/throwaway npm run test:integrat
 npm run build && npm run test:e2e
 ```
 
-- **Unit** (94): indicators against reference/hand-computed values, valuation formulas, risk statistics, portfolio ledger accounting, screener logic, CSV escaping and parsing, freshness labels, HTTP retry/backoff/validation, rate limiting, provider adapters with mocked HTTP, deterministic demo data, query validation, export policy, CSRF checks.
-- **Integration** (16): migrations and seed, authentication and sessions, cross-user authorization, watchlist/portfolio persistence, alert engine (fires once, labels DEMO, ignores stale data), server-side screening, risk report.
-- **End-to-end** (13): first-run setup, auth guards, every navigation route, keyboard search, watchlist persistence, portfolio entry and oversell rejection, screener and saved screens, valuation, alerts, CSV export, CSRF rejection, sign-out, mobile navigation.
+- **Unit** (109): bhavcopy parsing (UDiFF, legacy, index, TejHQ parquet, ZIP), validation and symbol normalisation, download URL building and politeness rules, indicators against reference/hand-computed values, valuation formulas, risk statistics, portfolio ledger accounting, screener logic, CSV escaping and parsing, freshness labels, HTTP retry/backoff/validation, rate limiting, provider adapters with mocked HTTP, deterministic demo data, query validation, export policy, CSRF checks.
+- **Integration** (25): end-of-day import with provenance, idempotent re-imports, ISIN-based renames, archive-vs-official precedence, HTML rejection, movers/breadth/screener from stored bars, downloader with mocked responses (skip, holiday, 403 stop), migrations and seed, authentication and sessions, cross-user authorization, watchlist/portfolio persistence, alert engine (fires once, labels DEMO, ignores stale data), server-side screening, risk report.
+- **End-to-end** (14): end-of-day file upload with provenance and duplicate detection, first-run setup, auth guards, every navigation route, keyboard search, watchlist persistence, portfolio entry and oversell rejection, screener and saved screens, valuation, alerts, CSV export, CSRF rejection, sign-out, mobile navigation.
 
 ---
 
 ## Known limitations
 
-- **No real Indian market data is connected.** Live/delayed NSE and BSE data needs a licensed vendor. Alpha Vantage (BSE end-of-day) is the only market adapter and was not tested against the live API here.
+- **No real-time Indian market data.** Real NSE/BSE data is end-of-day only, unadjusted for splits/bonuses, without fundamentals, sectors or index constituents; BSE files before July 2024 are not supported. Live/delayed data needs a licensed vendor. Details: [docs/EOD_DATA.md](docs/EOD_DATA.md#limitations).
 - Demo indices are computed from fictional constituents and do not represent official index levels or methodologies. Exchange holidays are not modelled (weekdays only).
 - Market session indicator uses the IST clock only; it does not know exchange holidays or special sessions.
 - The economic calendar does not fetch release schedules; you add events yourself.
@@ -244,6 +264,7 @@ Running locally costs nothing. A public deployment would need hosting, a managed
 | Embedded database corrupted | Stop the server, delete `data/`, run `npm run db:setup` (deletes accounts and records). |
 | “Database reachable but not migrated” | `npm run db:setup` |
 | PostgreSQL connection refused | Check the server is running and `DATABASE_URL` is correct; `npm run db:health`. With Docker: `docker compose ps`. |
+| Still demo data after importing | Set `MARKET_DATA_SOURCE=auto` in `.env.local` and restart. More in [docs/EOD_DATA.md](docs/EOD_DATA.md#troubleshooting). |
 | Port 3000 in use | `npx next dev -p 3001` |
 | `npm install` fails on old Node | Install Node 20.9+ (22 LTS recommended). |
 | Forgot password | Single-user local install: stop the server, delete `data/`, set up again — or in PostgreSQL mode delete the row from `users`. |

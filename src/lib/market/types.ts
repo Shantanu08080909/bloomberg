@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 /** How a record was obtained. Never mix these silently. */
-export const DATA_STATUSES = ["demo", "live", "delayed", "eod"] as const;
+/** historical = imported archive/backfill, not a current daily feed. */
+export const DATA_STATUSES = ["demo", "live", "delayed", "eod", "historical"] as const;
 export type DataStatus = (typeof DATA_STATUSES)[number];
 
 /** What the UI shows after freshness checks are applied. */
