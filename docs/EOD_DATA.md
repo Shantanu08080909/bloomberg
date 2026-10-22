@@ -24,9 +24,9 @@ environment had restricted network access, so NSE could not be tested live.
 
 | Source | Result |
 | --- | --- |
-| **BSE UDiFF bhavcopy, automated download** | ✅ Worked. Six sessions (13–21 Oct 2026) downloaded with a plain request and imported: ~4,500 equity rows per day, 0 rejected. A market holiday (20 Oct 2026) returned a web page instead of a file, which was detected and skipped. |
+| **BSE UDiFF bhavcopy, automated download** | ✅ Worked. Sessions 13–22 Oct 2026 downloaded with a plain request and imported: ~4,500 equity rows per day, 0 rejected. A market holiday (20 Oct 2026) returned a web page instead of a file, which was detected and skipped. |
 | **BSE UDiFF bhavcopy, manual import** | ✅ Worked with a real file (30 Sep 2026). |
-| **NSE UDiFF / legacy bhavcopy, automated download** | ⚠️ Not verifiable here: the build environment cannot reach `nseindia.com` (every request returned HTTP 503 from the network proxy). NSE is known to refuse requests that don't come from a browser; this application will **not** imitate a browser, so on your computer automated NSE downloads may return HTTP 403. The run then stops and tells you to download the file manually. |
+| **NSE UDiFF / legacy bhavcopy, automated download** | ❌ Refused. On 22 Oct 2026 NSE's archive server answered this application's plain (non-browser) request with HTTP 403; earlier attempts got HTTP 503. This application will **not** imitate a browser, so it stops and tells you to download the file manually. Use manual import (or the TejHQ archive) for NSE. |
 | **NSE bhavcopy, manual import** | ✅ Parser covers the UDiFF and legacy layouts. Tested with files built in the official column layout; no real NSE file could be downloaded here to test with. |
 | **NSE index closing file (`ind_close_all_DDMMYYYY.csv`)** | ⚠️ Parser implemented from the documented column names, not tested on a real file (NSE unreachable). |
 | **TejHQ archive (optional, third-party)** | ✅ Worked. NSE 2026 file (521,088 rows, 1 Jan – 21 Oct 2026) downloaded and imported in about 1.5 minutes, 0 rejected. |
@@ -110,6 +110,10 @@ endpoints. It requests only the published report files, at most one every
 `OpenFinanceTerminal/1.0 (personal end-of-day import; …)`.
 
 ## Setup
+
+**Quickest (personal use):** `bash scripts/real-data.sh` stops the server, enables the
+settings below, loads the current year from the TejHQ archive (NSE and BSE), downloads
+the latest official files, then builds and starts the app (about 5 minutes).
 
 Nothing is needed for manual import. To enable automated downloads and/or
 the archive, add to `.env.local` and restart:

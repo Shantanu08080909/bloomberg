@@ -16,6 +16,8 @@ OpenFinance Terminal is an original project. It is not affiliated with Bloomberg
 
 Click the button, then **Create codespace**. The first start takes about 3–4 minutes (install, database setup, build); the terminal then opens on port 3000 in a new browser tab. If it does not open, go to the **Ports** tab and click the globe icon next to port 3000. The URL is private to your GitHub account by default; to share it, right-click port 3000 → **Port visibility → Public**. Codespaces stop after 30 minutes of inactivity; your data persists until the codespace is deleted. Personal GitHub accounts include a monthly free usage quota.
 
+**Switch to real NSE/BSE end-of-day data** (personal use, about 5 minutes): in the codespace terminal press Ctrl+C to stop the server, then run `git pull && bash scripts/real-data.sh`. See [docs/EOD_DATA.md](docs/EOD_DATA.md).
+
 GitHub Pages cannot host this app: it serves static files only, and the terminal needs a running server and database.
 
 ### Run it on your computer
@@ -95,6 +97,7 @@ Keyboard: **Ctrl/⌘ K** or **/** opens search; ↑ ↓ Enter Esc navigate it.
 | `npm run db:health` | Check the database is reachable and migrated |
 | `npm run db:generate` | Generate a new SQL migration after editing `src/lib/db/schema.ts` |
 | `npm run verify` | lint + typecheck + tests + build |
+| `bash scripts/real-data.sh` | One step: enable end-of-day data, load this year's history, fetch the latest files, build and start |
 | `npm run eod -- status` | Stored end-of-day data and recent imports |
 | `npm run eod -- import <files or folders>` | Import official NSE/BSE bhavcopy CSV/ZIP files (or TejHQ parquet) |
 | `npm run eod -- update` | Download sessions since the last import (needs `EOD_DOWNLOAD_ENABLED=true`) |
@@ -168,7 +171,7 @@ Secrets are read only on the server (`src/lib/config.ts` is `server-only`); no v
 | RSS / Atom | Adapter implemented, **not verified live** | Headlines, links, times and short feed descriptions only. You must confirm each feed's terms. |
 | NSE/BSE bhavcopy, manual import | **Working** | Official UDiFF Common Bhavcopy (NSE and BSE, from Jul 2024), legacy NSE bhavcopy, NSE index closing file. Upload on Data Provider Status or `npm run eod -- import`. Tested with a real BSE file; NSE files tested in the official layout. |
 | BSE bhavcopy, automated download | **Verified live** (Oct 2026) | Off by default (`EOD_DOWNLOAD_ENABLED`). Six sessions downloaded and imported; a holiday was detected and skipped. |
-| NSE bhavcopy, automated download | Implemented, **not verified live** | nseindia.com was unreachable from the build environment. NSE may refuse non-browser requests (HTTP 403); the downloader does not imitate a browser and stops, so use manual import. |
+| NSE bhavcopy, automated download | **Refused by NSE** (HTTP 403, Oct 2026) | NSE refuses non-browser requests; the downloader does not imitate a browser, so it stops and asks for a manual import. Use manual import or the TejHQ archive for NSE. |
 | TejHQ archive (third-party) | **Verified live**, optional | Yearly parquet of NSE (2010→) and BSE (Jul 2024→) bhavcopy, labelled HISTORICAL, never overwrites official files, export blocked. Licence caveats in [docs/EOD_DATA.md](docs/EOD_DATA.md#licensing-and-terms). |
 | NSE/BSE real-time, fundamentals, sectors | **Not integrated** | Need a licensed vendor; the exchange websites and their internal APIs are not scraped. |
 | RBI (DBIE), MoSPI, SEBI | **Not integrated** | No documented, stable API with suitable terms was identified. Use Data Explorer → Import CSV for releases you download yourself. |
