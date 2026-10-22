@@ -10,6 +10,16 @@ OpenFinance Terminal is an original project. It is not affiliated with Bloomberg
 
 ## Quick start
 
+### Run it in the cloud with GitHub Codespaces (no install)
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Shantanu08080909/bloomberg?quickstart=1)
+
+Click the button, then **Create codespace**. The first start takes about 3–4 minutes (install, database setup, build); the terminal then opens on port 3000 in a new browser tab. If it does not open, go to the **Ports** tab and click the globe icon next to port 3000. The URL is private to your GitHub account by default; to share it, right-click port 3000 → **Port visibility → Public**. Codespaces stop after 30 minutes of inactivity; your data persists until the codespace is deleted. Personal GitHub accounts include a monthly free usage quota.
+
+GitHub Pages cannot host this app: it serves static files only, and the terminal needs a running server and database.
+
+### Run it on your computer
+
 Requirements: **Node.js 20.9 or newer** (Node 22 LTS recommended) and npm. Nothing else — the database is embedded.
 
 ### Windows (PowerShell)

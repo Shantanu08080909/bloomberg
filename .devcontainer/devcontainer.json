@@ -1,0 +1,19 @@
+{
+  // Runs OpenFinance Terminal in GitHub Codespaces (or any Dev Containers host).
+  // Open: https://codespaces.new/Shantanu08080909/bloomberg?quickstart=1
+  "name": "OpenFinance Terminal",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "OpenFinance Terminal", "onAutoForward": "openBrowser" }
+  },
+  // Install, configure demo mode, create the embedded database and build once.
+  "postCreateCommand": "npm ci && (test -f .env.local || cp .env.example .env.local) && npm run db:setup && npm run build",
+  // Start the production server every time the codespace starts.
+  "postStartCommand": "nohup npm run start > /tmp/openfinance.log 2>&1 &",
+  "customizations": {
+    "codespaces": { "openFiles": ["README.md"] },
+    "vscode": { "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"] }
+  }
+}
