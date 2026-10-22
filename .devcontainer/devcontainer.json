@@ -10,8 +10,9 @@
   },
   // Install, configure demo mode, create the embedded database and build once.
   "postCreateCommand": "npm ci && (test -f .env.local || cp .env.example .env.local) && npm run db:setup && npm run build",
-  // Start the production server every time the codespace starts.
-  "postStartCommand": "nohup npm run start > /tmp/openfinance.log 2>&1 &",
+  // Start the production server in a visible terminal whenever you open the codespace.
+  // (A background process from postStartCommand is stopped when that step ends.)
+  "postAttachCommand": { "server": "npm run start" },
   "customizations": {
     "codespaces": { "openFiles": ["README.md"] },
     "vscode": { "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"] }
